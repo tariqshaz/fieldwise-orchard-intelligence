@@ -507,4 +507,3 @@ export const Route = createFileRoute("/")({
 });
 
 // Imports placed at top of file in real bundling order
-import { createFileRoute } from "@tanstack/react-router";

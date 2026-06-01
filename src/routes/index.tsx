@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
 import { GeoMap } from "@/components/dashboard/GeoMap";
 import {
   Activity,

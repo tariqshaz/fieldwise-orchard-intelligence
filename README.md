@@ -1,80 +1,298 @@
-# Sentinel View
+# FieldWise Orchard Intelligence
 
-The architecture is mapped, and today is the final day of preparation before the June 2 launch window opens. To execute this properly, the dashboard cannot look like a chaotic engineer's terminal; it must be the visual embodiment of absolute structural control.
+Aurelian is a precision agriculture intelligence platform designed to give orchard owners, agronomists, and investors a single command center for crop health, field operations, autonomous intervention, and measurable return on investment.
 
-To command the attention of both institutional investors and large-scale agricultural operators, adopt a "Quiet Luxury" aesthetic. Strip away any loud, hyper-inflated marketing terminology. Instead, build a C-Suite interface using deep navy blue backgrounds, clean metallic gold typography, and translucent glass-morphism panels that echo a high-end boardroom.
+The product brings together real-time field telemetry, multispectral crop analysis, drone operations, soil sensor data, and AI-powered decision support into one unified operations console.
 
-Here is the exact UI widget hierarchy to build into your React/Mapbox prototype to prove your system's intelligence and economic value.
+Instead of forcing teams to work across disconnected spreadsheets, hardware dashboards, and generic farm apps, Aurelian turns field data into actionable intelligence.
 
-1. Center Stage: The Geospatial "God-View" Map
+## Why this project exists
 
-This is the anchor of the dashboard. It immediately proves you have mastered the physical reality of the field. Set the default view to a localized, recognizable geography—like a massive corporate farm on the outskirts of Lahore or Kasur—to ground the technology in reality.
+Modern agriculture is producing more data than ever before, but most operators still work with fragmented systems:
 
-Widget Type: Interactive 3D Mapbox GL JS Container.
+- field health information is scattered across tools and reports
+- crop stress is detected too late
+- irrigation decisions are based on guesswork or static schedules
+- drone routes and spray actions are not tied to live agronomic insight
+- investors can't easily see the financial value of operational decisions
 
-Layer Toggles (The "X-Ray" Vision):
+FieldWise Orchard Intelligence solves this by combining:
 
-NDVI (Normalized Difference Vegetation Index): A heat map showing plant health. Green for healthy, red for diseased/stressed.
+- drone and sensor data
+- geospatial crop monitoring
+- agronomic anomaly detection
+- AI recommendations
+- human-in-the-loop action approval
+- executive ROI reporting
 
-Moisture Grid: A blue-gradient overlay mapping the subterranean data pulled from your LoRaWAN IoT nodes.
+The result is a more intelligent and operationally useful platform for managing high-value orchards and large-scale agricultural estates.
 
-Active Flight Paths: Animated, glowing gold lines showing the drone's exact current route and its upcoming waypoints.
+## The core idea
 
-2. The Executive Top Bar: The "ROI" Metrics
+Aurelian is designed to act like a mission-control dashboard for agriculture.
 
-Investors and farm owners do not care about code; they care about capital efficiency. Put the financial and resource-saving metrics at the absolute top of the screen so they are the first numbers read.
+At the top, leadership sees business value:
+- pesticide savings
+- water efficiency
+- acreage covered
+- operational throughput
+- profitability improvements
 
-Metric WidgetThe Data DisplayedWhy It SellsInput Optimization"Pesticide Saved: 34% (120 Liters)"Proves the AI is successfully spot-spraying rather than blanket-spraying.Water Efficiency"Irrigation Output vs. Baseline: -28%"Crucial for the GCC or water-scarce regions. Proves IoT ground sensors are working.Fleet Coverage"Acres Audited Today: 450 / 500"Demonstrates the speed and scalability of the automated swarm logic.
+In the center, agronomists see the field itself:
+- NDVI crop health zones
+- moisture variability
+- crop stress patterns
+- drone flight paths
+- sector-by-sector field conditions
 
-3. Left Sidebar: Hardware Telemetry (The "Pulse")
+On the sides, operations teams monitor the physical system:
+- UAV health and battery
+- spray payload status
+- soil sensor mesh health
+- network quality and alerts
+- autonomous recommendations and approvals
 
-This panel proves you have a live, stable connection to the physical machines. It must look clinical and precise, communicating the health of the hardware.
+This creates a practical operating model: observe the field, understand the risk, act intelligently, validate the outcome.
 
-UAV-01 Status Card:
+## How the system works
 
-Flight Mode: Autonomous / Offboard (in glowing green).
+### 1. Data acquisition
+The platform is designed to ingest data from multiple sources:
 
-Battery Reserve: A precise percentage bar (e.g., 42% - 11 mins remaining).
+- multispectral drone imagery
+- in-ground soil sensors
+- LoRaWAN telemetry devices
+- agronomic field observations
+- historical orchard performance data
 
-Payload Depletion: A dynamic cylinder graphic showing liquid pesticide levels dropping in real-time.
+The system is designed around a layered architecture:
 
-IoT Mesh Health:
+- Aerial layer: UAVs scanning crop zones with multispectral sensors
+- Ground layer: IoT sensors measuring soil moisture, salinity, and temperature
+- Intelligence layer: AI and agronomic analysis to interpret conditions
+- Operations layer: operator dashboard for review and action approval
 
-A simple grid of dots representing the 50+ soil moisture sensors. Green for active, grey for offline, yellow for low battery. This proves your network is self-monitoring.
+### 2. Crop intelligence
+The platform calculates and visualizes crop health indicators such as NDVI, which helps detect:
 
-4. Right Panel: The AI Decision Engine (The "Brain")
+- plant stress
+- disease pressure
+- nutrient imbalance
+- water deficiency
+- early warning zones before crop damage becomes severe
 
-This is where the magic happens. Do not just show data; show the system making autonomous decisions. This widget should read like a feed of intelligent actions.
+These insights are overlaid onto a geospatial map so operators can see exactly where intervention is needed.
 
-Predictive Alerts: * “Critical anomaly detected in Sector 4 (Suspected rust disease). Drone spot-spray mission generated. Awaiting approval.”
+### 3. Autonomous decisioning
+When the system detects a field issue, it generates alert-based recommendations such as:
 
-Smart Irrigation Triggers: * “Soil moisture in Sector 2 dropped below 20%. Opening localized IoT valve 03 for 45 minutes.”
+- targeted spray dispatch
+- localized irrigation trigger
+- nutrient or moisture intervention
+- harvest readiness alert
+- anomaly escalation for manual review
 
-Harvest Timeline Prediction: * “Biomass growth analysis complete. Sector 7 reaching peak maturity. Recommend heavy machinery deployment in 14 Days.”
+Each recommendation is shown as a decision event with context such as:
+- affected zone or sector
+- confidence score
+- reason for recommendation
+- expected impact
+- operator action options
 
-The Execution Strategy
+### 4. Human-in-the-loop control
+Aurelian is not designed to act blindly.
 
-By arranging the UI this way, you are guiding the viewer's psychology. The Top Bar secures the investor by showing financial returns. The Center Map secures the agronomist by showing visual reality. The Side Panels secure the engineer by showing hardware stability and AI logic.
+The operator remains in control through approval workflows such as:
 
-This project was built with [Lovable](https://lovable.dev).
+- approve spray dispatch
+- confirm localized irrigation action
+- review AI alert before deployment
+- document operational response
 
-**Live app**: https://fieldwise-orchard-intelligence.lovable.app
+This keeps the platform practical for real-world agricultural operations while still using automation where it is most useful.
 
-## Build with Lovable
+### 5. ROI and executive visibility
+A major difference from traditional farm software is that Aurelian is designed for decision-makers, not just field technicians.
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/a7b69789-cb1f-4fc3-a170-460d3deaaec1).
+It provides:
+- resource savings metrics
+- irrigation efficiency reporting
+- pesticide optimization reporting
+- acreage coverage and completion tracking
+- operational performance trends
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+This makes the product useful for both agronomic execution and business-level accountability.
 
-## Development
+## Why this is more advanced than current market apps
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+Most farming platforms today focus on a single narrow function:
 
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
+- scheduling tasks
+- collecting field notes
+- monitoring basic weather
+- managing records
+- visualizing static maps
+
+They often fail to provide a true operational intelligence layer.
+
+FieldWise is different because it combines the following in one system:
+
+### Unified operational view
+Instead of disconnected tools for field monitoring, drone activities, chemical usage, and reporting, Aurelian brings everything into one control center.
+
+### Real-time geospatial intelligence
+The platform is built around zones, sectors, and live field conditions rather than just static field lists and generic records.
+
+### AI-powered recommendations
+The platform is designed not merely to display data, but to interpret it and recommend action.
+
+### Investor-grade performance reporting
+Unlike many farm apps that are built around tasks and logs, Aurelian is designed around measurable economic outcomes.
+
+### Human approval for autonomous actions
+This creates a balanced workflow: automation helps speed decisions, but people remain ultimately accountable for high-impact actions.
+
+### Enterprise-ready strategic positioning
+The system is built with a premium command-center aesthetic and executive decision hierarchy, which is especially important for institutional stakeholders and large agricultural operators.
+
+## Current state of the project
+
+The project has already moved beyond a pure concept and is now demonstrating a functioning, polished dashboard experience.
+
+### Built so far
+- executive command bar with ROI metrics
+- dark navy and gold premium design system
+- glassmorphism-based dashboard panels
+- geospatial field interface
+- sector health visualization using color-coded field zones
+- NDVI and moisture-layer toggles
+- animated drone route overlays
+- IoT mesh health panel
+- UAV telemetry cards
+- AI decision feed with operational recommendations
+- backend infrastructure enabled through Lovable Cloud
+
+This is already a strong frontend prototype for a high-value agricultural intelligence product.
+
+## Product vision
+
+Aurelian is intended to become the operating layer for high-value orchard and field management, particularly in contexts where precision matters and operational efficiency drives profitability.
+
+The platform is positioned for:
+- orchard estates
+- large-scale agricultural operations
+- precision crop management teams
+- investors and agribusiness stakeholders
+- AI-assisted farming and autonomous intervention workflows
+
+## Planned architecture
+
+### Data and operations model
+The platform is designed to support entities such as:
+
+- estates
+- orchards or field blocks
+- sectors
+- drone telemetry
+- soil sensor nodes
+- sensor readings
+- recommendations
+- intervention actions
+- historical performance data
+- user roles and approval workflows
+
+### Core workflows
+1. Collect field data from drones and IoT sensors
+2. Analyze crop health and stress conditions
+3. Identify high-priority anomalies
+4. Recommend specific interventions
+5. Present recommendation to operator for approval
+6. Dispatch the action or trigger system control
+7. Monitor the result and record outcomes
+
+## Roadmap
+
+### Phase 1: Persistent data layer
+- add databases for estates, sectors, telemetry, AI alerts, and actions
+- replace mocked UI state with real records
+
+### Phase 2: Live operational workflows
+- connect action buttons to real logic
+- trigger dispatch and approval state transitions
+- update live telemetry in the UI
+
+### Phase 3: Historical analytics
+- multi-day crop trend views
+- compare sector performance over time
+- analyze water and spray efficiency trends
+
+### Phase 4: Multi-estate management
+- switch between orchards or estates
+- monitor performance across multiple sites
+
+### Phase 5: Role-based access
+- investor view
+- agronomist view
+- field operations view
+
+### Phase 6: Enterprise readiness
+- stronger data validation
+- improved reliability and monitoring
+- security and audit trails
+- production-grade deployment architecture
+
+## Tech stack
+
+This project is being built with:
+
+- React
+- TanStack Start
+- Vite
+- Tailwind CSS
+- Lovable Cloud backend
+- PostgreSQL
+- authentication and storage infrastructure
+- AI-driven decision support patterns
+
+## Getting started
+
+### Prerequisites
+- Node.js
+- npm
+
+### Install and run
+
+```bash
+git clone <repository-url>
+cd fieldwise-orchard-intelligence
+npm install
 npm run dev
 ```
+
+## Project goal in one sentence
+
+FieldWise Orchard Intelligence is a precision agriculture command center that helps growers and operators turn field data into smarter decisions, better crop outcomes, and measurable economic efficiency.
+
+## Summary
+
+This project is positioned to go beyond traditional farm management software by creating a more advanced decision-making platform for agriculture.
+
+The difference is not just the UI — it is the combination of:
+- geospatial intelligence
+- agronomic analysis
+- autonomous recommendations
+- operational control
+- executive ROI visibility
+
+That combination is what makes the product more useful, more strategic, and more valuable than the current generation of standard farm apps.
+
+---
+
+If you want to continue developing this project, the next highest-value priorities are:
+- real database integration
+- action workflows tied to approvals
+- historical analytics and estate comparison
+- role-based access for different user types
+- production-grade reliability and observability
+
+That is where the prototype becomes a real operating system for modern agriculture.

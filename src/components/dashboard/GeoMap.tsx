@@ -1,18 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { Sector as FieldSector } from "@/types/fieldwise";
+import type { ImportedBoundary } from "@/lib/geospatial";
+import { projectBoundary } from "@/lib/geospatial";
 
-type Sector = { id: string; x: number; y: number; w: number; h: number; ndvi: number };
-const SECTORS: Sector[] = [
-  { id: "S1", x: 6, y: 10, w: 22, h: 26, ndvi: 0.82 },
-  { id: "S2", x: 30, y: 8, w: 20, h: 22, ndvi: 0.41 },
-  { id: "S3", x: 52, y: 12, w: 24, h: 28, ndvi: 0.74 },
-  { id: "S4", x: 78, y: 10, w: 16, h: 24, ndvi: 0.18 },
-  { id: "S5", x: 6, y: 40, w: 28, h: 24, ndvi: 0.68 },
-  { id: "S6", x: 36, y: 34, w: 22, h: 30, ndvi: 0.58 },
-  { id: "S7", x: 60, y: 38, w: 20, h: 28, ndvi: 0.88 },
-  { id: "S8", x: 82, y: 38, w: 12, h: 28, ndvi: 0.55 },
-  { id: "S9", x: 8, y: 68, w: 30, h: 24, ndvi: 0.62 },
-  { id: "S10", x: 40, y: 68, w: 26, h: 22, ndvi: 0.71 },
-  { id: "S11", x: 68, y: 68, w: 26, h: 24, ndvi: 0.49 },
+type Parcel = { id: string; x: number; y: number; w: number; h: number };
+const PARCELS: Parcel[] = [
+  { id: "S1", x: 6, y: 10, w: 22, h: 26 },
+  { id: "S2", x: 30, y: 8, w: 20, h: 22 },
+  { id: "S3", x: 52, y: 12, w: 24, h: 28 },
+  { id: "S4", x: 78, y: 10, w: 16, h: 24 },
+  { id: "S5", x: 6, y: 40, w: 28, h: 24 },
+  { id: "S6", x: 36, y: 34, w: 22, h: 30 },
+  { id: "S7", x: 60, y: 38, w: 20, h: 28 },
+  { id: "S8", x: 82, y: 38, w: 12, h: 28 },
+  { id: "S9", x: 8, y: 68, w: 30, h: 24 },
+  { id: "S10", x: 40, y: 68, w: 26, h: 22 },
+  { id: "S11", x: 68, y: 68, w: 26, h: 24 },
 ];
 
 function ndviColor(v: number) {
@@ -23,9 +26,23 @@ function ndviColor(v: number) {
   return "oklch(0.72 0.18 145 / 0.5)";
 }
 
+function moistureColor(v: number) {
+  if (v < 20) return "oklch(0.62 0.2 28 / 0.58)";
+  if (v < 25) return "oklch(0.78 0.16 70 / 0.5)";
+  return "oklch(0.68 0.17 240 / 0.52)";
+}
+
 type LayerKey = "ndvi" | "moisture" | "flight";
 
-export function GeoMap({ layers }: { layers: Record<LayerKey, boolean> }) {
+export function GeoMap({
+  layers,
+  sectors,
+  boundary,
+}: {
+  layers: Record<LayerKey, boolean>;
+  sectors: FieldSector[];
+  boundary?: ImportedBoundary | null;
+}) {
   const [t, setT] = useState(0);
   useEffect(() => {
     let raf: number;
@@ -37,11 +54,30 @@ export function GeoMap({ layers }: { layers: Record<LayerKey, boolean> }) {
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  const projectedBoundary = useMemo(
+    () => (boundary ? projectBoundary(boundary) : null),
+    [boundary],
+  );
+
+  const fillForSector = (sector: FieldSector) =>
+    layers.ndvi
+      ? ndviColor(sector.ndvi)
+      : layers.moisture
+        ? moistureColor(sector.moisture)
+        : "oklch(0.3 0.04 260 / 0.25)";
+
   // Drone flight path waypoints (percent coordinates)
   const path: [number, number][] = [
-    [12, 22], [40, 18], [64, 26], [86, 22],
-    [78, 50], [50, 48], [22, 52], [18, 78],
-    [50, 80], [80, 78],
+    [12, 22],
+    [40, 18],
+    [64, 26],
+    [86, 22],
+    [78, 50],
+    [50, 48],
+    [22, 52],
+    [18, 78],
+    [50, 80],
+    [80, 78],
   ];
   const segIdx = Math.floor(t * (path.length - 1));
   const segT = t * (path.length - 1) - segIdx;
@@ -62,15 +98,15 @@ export function GeoMap({ layers }: { layers: Record<LayerKey, boolean> }) {
       />
 
       {/* Topographic contour lines */}
-      <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100">
+      <svg
+        className="absolute inset-0 h-full w-full"
+        preserveAspectRatio={projectedBoundary ? "xMidYMid meet" : "none"}
+        viewBox="0 0 100 100"
+      >
         <defs>
           <pattern id="grid" width="5" height="5" patternUnits="userSpaceOnUse">
             <path d="M5 0H0V5" fill="none" stroke="oklch(0.82 0.13 85 / 0.06)" strokeWidth="0.1" />
           </pattern>
-          <radialGradient id="moisture" cx="40%" cy="55%" r="45%">
-            <stop offset="0%" stopColor="oklch(0.7 0.18 240 / 0.55)" />
-            <stop offset="100%" stopColor="oklch(0.5 0.18 240 / 0)" />
-          </radialGradient>
           <filter id="glow">
             <feGaussianBlur stdDeviation="0.6" />
             <feMerge>
@@ -81,37 +117,82 @@ export function GeoMap({ layers }: { layers: Record<LayerKey, boolean> }) {
         </defs>
         <rect width="100" height="100" fill="url(#grid)" />
 
-        {/* Field parcels */}
-        {SECTORS.map((s) => (
-          <g key={s.id}>
-            <rect
-              x={s.x}
-              y={s.y}
-              width={s.w}
-              height={s.h}
-              fill={layers.ndvi ? ndviColor(s.ndvi) : "oklch(0.3 0.04 260 / 0.25)"}
-              stroke="oklch(0.82 0.13 85 / 0.18)"
-              strokeWidth="0.15"
-            />
-            <text
-              x={s.x + 1}
-              y={s.y + 3}
-              fontSize="1.6"
-              fill="oklch(0.82 0.13 85 / 0.7)"
-              fontFamily="JetBrains Mono"
-            >
-              {s.id}
-            </text>
-          </g>
-        ))}
-
-        {/* Moisture overlay */}
-        {layers.moisture && (
+        {/* Imported boundaries, or the illustrative demo layout */}
+        {projectedBoundary ? (
           <>
-            <ellipse cx="28" cy="55" rx="22" ry="14" fill="url(#moisture)" />
-            <ellipse cx="70" cy="40" rx="18" ry="12" fill="url(#moisture)" opacity="0.7" />
-            <ellipse cx="55" cy="78" rx="20" ry="10" fill="url(#moisture)" opacity="0.5" />
+            <path
+              d={projectedBoundary.estatePath}
+              fill="oklch(0.26 0.04 255 / 0.55)"
+              stroke="oklch(0.82 0.13 85 / 0.9)"
+              strokeWidth="0.35"
+              strokeDasharray="1 0.5"
+              strokeLinejoin="round"
+              fillRule="evenodd"
+            />
+            {projectedBoundary.sectors.map((parcel) => {
+              const sector = sectors.find((item) => item.id === parcel.sectorId);
+              if (!sector) return null;
+
+              return (
+                <g key={parcel.sectorId}>
+                  <path
+                    d={parcel.path}
+                    fill={fillForSector(sector)}
+                    stroke="oklch(0.82 0.13 85 / 0.5)"
+                    strokeWidth="0.14"
+                    strokeLinejoin="round"
+                    fillRule="evenodd"
+                  >
+                    <title>
+                      {sector.name} · NDVI {sector.ndvi.toFixed(2)} · Soil moisture{" "}
+                      {sector.moisture}%
+                    </title>
+                  </path>
+                  <text
+                    x={parcel.labelX}
+                    y={parcel.labelY}
+                    fontSize="1.5"
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fill="oklch(0.9 0.1 88)"
+                    stroke="oklch(0.1 0.03 255 / 0.9)"
+                    strokeWidth="0.3"
+                    style={{ paintOrder: "stroke" }}
+                    fontFamily="JetBrains Mono"
+                  >
+                    {sector.name.replace("Sector ", "S")}
+                  </text>
+                </g>
+              );
+            })}
           </>
+        ) : (
+          PARCELS.map((parcel) => {
+            const sector = sectors.find((item) => item.id === `sector-${parcel.id.slice(1)}`);
+            if (!sector) return null;
+            return (
+              <g key={sector.id}>
+                <rect
+                  x={parcel.x}
+                  y={parcel.y}
+                  width={parcel.w}
+                  height={parcel.h}
+                  fill={fillForSector(sector)}
+                  stroke="oklch(0.82 0.13 85 / 0.18)"
+                  strokeWidth="0.15"
+                />
+                <text
+                  x={parcel.x + 1}
+                  y={parcel.y + 3}
+                  fontSize="1.6"
+                  fill="oklch(0.82 0.13 85 / 0.7)"
+                  fontFamily="JetBrains Mono"
+                >
+                  {sector.name.replace("Sector ", "S")}
+                </text>
+              </g>
+            );
+          })
         )}
 
         {/* Flight path */}
@@ -140,7 +221,13 @@ export function GeoMap({ layers }: { layers: Record<LayerKey, boolean> }) {
             {/* Drone */}
             <g transform={`translate(${droneX} ${droneY})`} filter="url(#glow)">
               <circle r="1.2" fill="oklch(0.92 0.14 88)" />
-              <circle r="2.4" fill="none" stroke="oklch(0.88 0.14 85)" strokeWidth="0.2" opacity="0.6" />
+              <circle
+                r="2.4"
+                fill="none"
+                stroke="oklch(0.88 0.14 85)"
+                strokeWidth="0.2"
+                opacity="0.6"
+              />
             </g>
           </>
         )}
@@ -177,7 +264,10 @@ export function GeoMap({ layers }: { layers: Record<LayerKey, boolean> }) {
       {/* Scan line */}
       <div
         className="pointer-events-none absolute inset-x-0 h-px scan-line"
-        style={{ background: "linear-gradient(90deg, transparent, oklch(0.82 0.13 85 / 0.55), transparent)" }}
+        style={{
+          background:
+            "linear-gradient(90deg, transparent, oklch(0.82 0.13 85 / 0.55), transparent)",
+        }}
       />
     </div>
   );

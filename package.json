@@ -9,6 +9,8 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
+    "test:geospatial": "node --experimental-strip-types --test src/lib/geospatial.test.ts",
+    "test:sentinel": "node --experimental-strip-types --test src/lib/sentinel/sentinel.test.ts",
     "format": "prettier --write ."
   },
   "dependencies": {

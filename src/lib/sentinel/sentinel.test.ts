@@ -41,6 +41,16 @@ import {
   validPixelPct,
 } from "./ndvi.ts";
 import { validateStandaloneGeometry } from "../geospatial.ts";
+import {
+  PlanetaryComputerProviderError,
+  buildMaskedNdviExpression,
+  buildPreviewNdviExpression,
+  buildTopSentinelExpression,
+  debiasStatistics,
+  deriveSamplePixelCounts,
+  percentileFromBins,
+  parseHistogram,
+} from "./planetary-computer-adapter.server.ts";
 
 // ---------------------------------------------------------------------------
 // Sample AOIs: always labelled, never a "farm", within provider bounds
@@ -343,4 +353,150 @@ test("ramp is ordered, in range, and its CSS gradient matches the stops", () => 
   assert.deepEqual(ndviToRgb(-2), NDVI_RAMP_STOPS[0].rgb);
   assert.deepEqual(ndviToRgb(2), NDVI_RAMP_STOPS[NDVI_RAMP_STOPS.length - 1].rgb);
   assert.deepEqual(ndviToRgb(0), NDVI_RAMP_STOPS.find((stop) => stop.ndvi === 0)!.rgb);
+});
+
+// ---------------------------------------------------------------------------
+// Planetary Computer adapter: pure helpers (no network)
+// ---------------------------------------------------------------------------
+
+test("Planetary Computer error vocabulary keeps distinct provider failure categories", () => {
+  const unreachable = new PlanetaryComputerProviderError("provider_error");
+  assert.equal(unreachable.code, "provider_error");
+  assert.equal(
+    unreachable.message,
+    "The satellite provider could not be reached. Check connectivity and try again.",
+  );
+  const http500 = new PlanetaryComputerProviderError("provider_error", 500);
+  assert.equal(
+    http500.message,
+    "The satellite provider returned an error (HTTP 500). Try again later.",
+  );
+  assert.equal(
+    new PlanetaryComputerProviderError("rate_limited").message,
+    SENTINEL_ERROR_MESSAGES.rate_limited,
+  );
+  assert.equal(
+    new PlanetaryComputerProviderError("timeout").message,
+    SENTINEL_ERROR_MESSAGES.timeout,
+  );
+  assert.equal(
+    new PlanetaryComputerProviderError("provider_response_invalid").message,
+    SENTINEL_ERROR_MESSAGES.provider_response_invalid,
+  );
+});
+
+test("masked NDVI expression uses asset names and excludes every excluded SCL class", () => {
+  const expression = buildMaskedNdviExpression();
+  // Band names are the asset names, not indexed bands.
+  assert.ok(expression.includes("B08"), "expression references B08");
+  assert.ok(expression.includes("B04"), "expression references B04");
+  assert.ok(expression.includes("SCL"), "expression references SCL");
+  assert.ok(!expression.includes("asset1_b1"), "expression does not use indexed band names");
+  // NDVI formula and the zero-denominator guard.
+  assert.ok(expression.includes("(B08-B04)/(B08+B04)"), "NDVI formula present");
+  assert.ok(expression.includes("((B08+B04)==0)"), "zero denominator guarded");
+  // Every excluded SCL class is masked to the bottom sentinel.
+  for (const value of excludedSclValues()) {
+    assert.ok(expression.includes(`(SCL==${value})`), `expression masks SCL ${value}`);
+  }
+  assert.ok(expression.includes(`-9999`), "bottom sentinel is -9999");
+  assert.ok(expression.startsWith("where("), "expression is a where()");
+});
+
+test("top sentinel expression drives the exact-min statistics call", () => {
+  const expression = buildTopSentinelExpression();
+  for (const value of excludedSclValues()) {
+    assert.ok(expression.includes(`(SCL==${value})`), `top expression masks SCL ${value}`);
+  }
+  assert.ok(expression.includes(`65535`), "top sentinel is 65535");
+  assert.ok(expression.includes("(B08-B04)/(B08+B04)"), "NDVI formula present");
+});
+
+test("Planetary Computer preview uses compact sentinel-separated grayscale", () => {
+  const expression = buildPreviewNdviExpression();
+  assert.ok(expression.includes("where("), "preview applies the quality mask");
+  assert.ok(expression.includes(",-2,"), "masked samples map to byte zero after rescaling");
+  assert.ok(expression.includes("(B08-B04)/(B08+B04)"), "valid samples retain NDVI");
+});
+
+test("statistics debiasing removes bottom-sentinel pollution exactly", () => {
+  // Usable NDVIs: -0.5, 0, 0.5; two pixels masked to the bottom sentinel.
+  const valid = [-0.5, 0, 0.5];
+  const nAll = valid.length + 2;
+  const sum = valid.reduce((a, b) => a + b, 0) + -9999 * 2;
+  const mean = sum / nAll;
+  const variance = valid.reduce((acc, v) => acc + (v - mean) ** 2, 0) + 2 * (-9999 - mean) ** 2;
+  const std = Math.sqrt(variance / nAll); // population, ddof 0
+
+  const result = debiasStatistics({ count: nAll, sum, mean, std, masked: 2 });
+  assert.ok(result, "debiasing succeeds");
+  if (result) {
+    assert.equal(result.meanValid, 0, "debiased mean is the usable mean");
+    const expectedStDev = Math.sqrt(valid.reduce((acc, v) => acc + v ** 2, 0) / valid.length);
+    assert.equal(result.stDevValid, expectedStDev, "debiased stDev is the usable stDev");
+  }
+});
+
+test("statistics debiasing rejects degenerate input", () => {
+  assert.equal(debiasStatistics({ count: 0, sum: 0, mean: 0, std: 0, masked: 0 }), null);
+  assert.equal(debiasStatistics({ count: 5, sum: 0, mean: 0, std: 0, masked: 5 }), null);
+});
+
+test("sample pixel counts combine source no-data and masked NDVI pixels", () => {
+  const counts = deriveSamplePixelCounts({
+    count: 600,
+    sourceMasked: 400,
+    histogramCounts: [200, 300],
+  });
+  assert.deepEqual(counts, {
+    sampleCount: 1000,
+    noDataCount: 500,
+    expressionMasked: 100,
+    valid: 500,
+  });
+  assert.equal(
+    deriveSamplePixelCounts({ count: 100, sourceMasked: 20, histogramCounts: [110] }),
+    null,
+    "rejects histogram counts larger than source-data count",
+  );
+});
+
+test("histogram parsing handles the provider's two-array form and rejects malformed input", () => {
+  const parsed = parseHistogram([
+    [10, 20, 30],
+    [0, 0.25, 0.5, 1],
+  ]);
+  assert.ok(parsed, "two-array histogram parses");
+  if (parsed) {
+    assert.deepEqual(parsed.counts, [10, 20, 30]);
+    assert.deepEqual(parsed.edges, [0, 0.25, 0.5, 1]);
+  }
+  assert.equal(parseHistogram(null), null);
+  assert.equal(parseHistogram([1, 2, 3]), null);
+  assert.equal(
+    parseHistogram([
+      [1, 2],
+      [0, 0.5],
+    ]),
+    null,
+    "edges must be counts.length + 1",
+  );
+  assert.equal(
+    parseHistogram([
+      [1, -2],
+      [0, 0.5, 1],
+    ]),
+    null,
+    "counts must be non-negative",
+  );
+});
+
+test("percentile interpolation from histogram bins", () => {
+  const counts = [10, 20, 30, 40];
+  const edges = [0, 0.25, 0.5, 0.75, 1];
+  assert.equal(percentileFromBins(counts, edges, 10), 0.25);
+  assert.equal(percentileFromBins(counts, edges, 50), 2 / 3);
+  assert.equal(percentileFromBins(counts, edges, 90), 0.9375);
+  assert.equal(percentileFromBins([], [0], 50), null);
+  assert.equal(percentileFromBins(counts, edges, 99), 0.99375);
 });

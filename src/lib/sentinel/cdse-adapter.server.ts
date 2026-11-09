@@ -95,9 +95,12 @@ export interface CdseSentinelProvider {
     scenes: SentinelScene[];
     truncated: boolean;
   }>;
-  retrieveNdvi(
-    params: RetrieveNdviParams,
-  ): Promise<{ previewPngBase64: string; stats: RawNdviStats }>;
+  retrieveNdvi(params: RetrieveNdviParams): Promise<{
+    previewPngBase64: string;
+    previewEncoding?: "ndvi-grayscale";
+    stats: RawNdviStats;
+    statsResolutionMeters?: number;
+  }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -118,6 +121,11 @@ function readCredentials(): { clientId: string; clientSecret: string } | null {
   const clientSecret = process.env["CDSE_OAUTH_CLIENT_SECRET"]?.trim();
   if (!clientId || !clientSecret) return null;
   return { clientId, clientSecret };
+}
+
+/** Whether the server has both CDSE credentials; this never exposes values. */
+export function hasCdseCredentials(): boolean {
+  return readCredentials() !== null;
 }
 
 function invalidateAccessToken(): void {
@@ -327,6 +335,7 @@ async function searchScenes(
       tileCloudCoverPct: finiteOrNull(properties?.["eo:cloud_cover"]),
       gsdMeters: finiteOrNull(properties?.gsd),
       platform: properties && typeof properties.platform === "string" ? properties.platform : null,
+      provider: "cdse",
     });
   }
 

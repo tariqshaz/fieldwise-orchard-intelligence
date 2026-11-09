@@ -31,6 +31,8 @@ export interface SentinelScene {
   gsdMeters: number | null;
   /** Platform name, e.g. `sentinel-2a`. */
   platform: string | null;
+  /** Provider used to list this scene; lets retrieval use the same catalog. */
+  provider?: "cdse" | "planetary-computer";
 }
 
 /** Non-sensitive failure vocabulary. Messages never contain secrets or provider bodies. */
@@ -56,6 +58,7 @@ export interface SceneSearchResult {
   ok: true;
   /** Newest first, bounded by `limit`. */
   scenes: SentinelScene[];
+  provider: "cdse" | "planetary-computer";
   /** True when the provider returned a full page — more scenes may exist. */
   truncated: boolean;
   limit: number;
@@ -111,6 +114,8 @@ export interface MaskingDisclosure {
 export interface NdviPreview {
   /** `data:image/png;base64,…` — RGBA PNG, masked pixels fully transparent. */
   dataUrl: string;
+  /** Planetary Computer sends compact grayscale for browser-side NDVI colorization. */
+  encoding?: "ndvi-grayscale";
   width: number;
   height: number;
   /** Geographic bounds of the rendered image, west/south/east/north (WGS84). */
@@ -122,6 +127,7 @@ export interface NdviPreview {
 export interface NdviObservationResult {
   ok: true;
   scene: SentinelScene;
+  provider: "cdse" | "planetary-computer";
   aoi: AoiDescriptor;
   /** Server clock when processing finished (UTC ISO 8601). */
   retrievedAt: string;
@@ -131,7 +137,7 @@ export interface NdviObservationResult {
   /** Resolution the statistics were sampled at, in metres. */
   statsResolutionMeters: number;
   caveats: string[];
-  /** Required Copernicus/Sentinel Hub attribution string. */
+  /** Provider and data-source attribution for this observation. */
   attribution: string;
 }
 

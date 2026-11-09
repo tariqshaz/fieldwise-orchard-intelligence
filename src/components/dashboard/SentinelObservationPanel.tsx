@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Info, Loader2, Satellite, Search, XCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -177,6 +177,66 @@ function SceneRow({
   );
 }
 
+function NdviPreviewCanvas({
+  preview,
+  sceneId,
+}: {
+  preview: NdviObservationResult["preview"];
+  sceneId: string;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    let active = true;
+    const image = new Image();
+    image.onload = () => {
+      if (!active) return;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context) return;
+      canvas.width = preview.width;
+      canvas.height = preview.height;
+      context.drawImage(image, 0, 0, preview.width, preview.height);
+      const pixels = context.getImageData(0, 0, preview.width, preview.height);
+      for (let offset = 0; offset < pixels.data.length; offset += 4) {
+        const gray = pixels.data[offset];
+        if (pixels.data[offset + 3] === 0 || gray === 0) {
+          pixels.data[offset] = 0;
+          pixels.data[offset + 1] = 0;
+          pixels.data[offset + 2] = 0;
+          pixels.data[offset + 3] = 0;
+          continue;
+        }
+        const ndvi = (gray / 255) * 3 - 2;
+        const [red, green, blue] = ndviToRgb(ndvi);
+        pixels.data[offset] = red;
+        pixels.data[offset + 1] = green;
+        pixels.data[offset + 2] = blue;
+      }
+      context.putImageData(pixels, 0, 0);
+    };
+    image.src = preview.dataUrl;
+
+    return () => {
+      active = false;
+      image.onload = null;
+    };
+  }, [preview.dataUrl, preview.height, preview.width]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={preview.width}
+      height={preview.height}
+      role="img"
+      aria-label={`NDVI preview for ${sceneId}; masked pixels are transparent`}
+      className="block h-auto w-full"
+    />
+  );
+}
+
 function ObservationView({
   observation,
   scene,
@@ -206,13 +266,17 @@ function ObservationView({
             className="relative overflow-hidden rounded-sm border border-border/40"
             style={CHECKERBOARD}
           >
-            <img
-              src={preview.dataUrl}
-              alt={`NDVI preview for ${scene.id}; masked pixels are transparent`}
-              width={preview.width}
-              height={preview.height}
-              className="block h-auto w-full"
-            />
+            {preview.encoding === "ndvi-grayscale" ? (
+              <NdviPreviewCanvas preview={preview} sceneId={scene.id} />
+            ) : (
+              <img
+                src={preview.dataUrl}
+                alt={`NDVI preview for ${scene.id}; masked pixels are transparent`}
+                width={preview.width}
+                height={preview.height}
+                className="block h-auto w-full"
+              />
+            )}
             <span className="absolute left-1 top-1 rounded-sm bg-black/60 px-1 py-0.5 font-mono text-[8px] tracking-wider text-white/85">
               {formatDeg(bbox[0], "lon")} {formatDeg(bbox[3], "lat")}
             </span>
@@ -286,7 +350,14 @@ function ObservationView({
             <dl className="grid grid-cols-1 gap-x-4 gap-y-1.5 text-[11px] sm:grid-cols-2">
               <MetaRow label="Acquisition" value={formatUtc(scene.acquiredAt)} mono />
               <MetaRow label="Retrieved" value={formatUtc(observation.retrievedAt)} mono />
-              <MetaRow label="Source" value="Copernicus Sentinel-2 L2A · Sentinel Hub" />
+              <MetaRow
+                label="Source"
+                value={
+                  observation.provider === "cdse"
+                    ? "Copernicus Sentinel-2 L2A · Sentinel Hub"
+                    : "Copernicus Sentinel-2 L2A · Microsoft Planetary Computer"
+                }
+              />
               <MetaRow
                 label="Statistics resolution"
                 value={`${observation.statsResolutionMeters} m`}
@@ -427,7 +498,7 @@ function ObservationView({
 }
 
 export function SentinelObservationPanel({ boundary }: { boundary: ImportedBoundary | null }) {
-  const [aoiChoice, setAoiChoice] = useState("imported");
+  const [aoiChoice, setAoiChoice] = useState(() => SAMPLE_AOIS[0]?.id ?? "imported");
   const [from, setFrom] = useState(() => defaultFromDate());
   const [to, setTo] = useState(() => defaultToDate());
   const [formError, setFormError] = useState<string | null>(null);
@@ -564,6 +635,7 @@ export function SentinelObservationPanel({ boundary }: { boundary: ImportedBound
             tileCloudCoverPct: scene.tileCloudCoverPct,
             gsdMeters: scene.gsdMeters,
             platform: scene.platform,
+            provider: scene.provider,
           },
         },
       });
@@ -604,7 +676,7 @@ export function SentinelObservationPanel({ boundary }: { boundary: ImportedBound
             </h2>
           </div>
           <div className="label-eyebrow mt-1.5">
-            Copernicus Data Space · Sentinel Hub · real scene, real pixels
+            Sentinel-2 L2A · real scene metadata and satellite pixels
           </div>
         </div>
         <div className="text-right font-mono text-[9px] leading-relaxed tracking-wider text-muted-foreground">
@@ -732,7 +804,9 @@ export function SentinelObservationPanel({ boundary }: { boundary: ImportedBound
       {/* Search states */}
       {searchPhase === "idle" && !formError && (
         <div className="mt-4 rounded-sm border border-border/40 bg-black/10 px-3 py-3 text-[11px] text-muted-foreground">
-          Choose an area of interest and date range, then search the Sentinel-2 archive. Nothing is
+          Choose an area and date range, then search the Sentinel-2 archive. With no CDSE
+          credentials, the Khanewal and Okara sample areas use the public Microsoft Planetary
+          Computer catalog and data API; imported boundaries stay on the CDSE path. Nothing is
           fetched until you search, and NDVI is only computed once you select a scene.
         </div>
       )}
@@ -768,7 +842,10 @@ export function SentinelObservationPanel({ boundary }: { boundary: ImportedBound
       {searchPhase === "done" && sceneList && sceneList.length > 0 && searchResult && (
         <div className="mt-4 border-t border-border/40 pt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="label-eyebrow">Scenes · newest first</div>
+            <div className="label-eyebrow">
+              Scenes · newest first ·{" "}
+              {searchResult.provider === "cdse" ? "CDSE" : "Public demo provider"}
+            </div>
             <div className="font-mono text-[9px] text-muted-foreground">
               {searchResult.truncated
                 ? `${sceneList.length} of ${searchResult.limit}+`

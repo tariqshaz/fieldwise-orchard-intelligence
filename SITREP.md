@@ -1,7 +1,22 @@
 # FieldWise Orchard Intelligence — SITREP
 
 ## Date: 2026-11-08
+
 ## Session handoff — 2026-11-08
+
+### Latest Sentinel fallback fix and live verification — 2026-11-08
+
+The repeated Planetary Computer HTTP 500s were caused by three adapter defects, not evidence of a provider outage:
+
+1. The SCL mask expression joined comparisons as `SCL==0|SCL==1|...`; TiTiler's expression parser required each comparison to be parenthesized. Each SCL condition is now emitted as `(SCL==value)`.
+2. The preview sent raw query text and an unsupported colormap structure. Preview parameters now use `URLSearchParams`; the colormap uses TiTiler's indexed JSON-to-hex format with `colormap_type=linear`.
+3. After the provider returned HTTP 200, the adapter still rejected the statistics. Planetary Computer reports source no-data pixels separately from `count`; the usable NDVI histogram excludes expression-sentinel pixels. The adapter now derives expression-masked pixels from `count - histogram total`, and computes total samples/no-data from those values plus the separate source-mask count.
+
+**Verified live after the fixes:** latest Khanewal and Okara scenes both returned HTTP 200 for selected-item retrieval, preview, heavy statistics, and light statistics. The app was also walked in isolated Edge: catalog search and selecting the newest scene rendered a 640×427 preview and the statistics/caveats for each AOI, with no provider error. The local app continues to return HTTP 200 on port 8080. This follow-up supersedes the same-date notes below that described the cause as undetermined or a provider outage; those notes document the state before the request and response-shape defects were isolated.
+
+**Checks after the fix:** `npm run test:sentinel` — 29/29 passed; `npx tsc --noEmit` — passed; targeted ESLint — clean; `npm run build` — passed (with existing vendor chunk-size and upstream TanStack directive warnings); `git diff --check` — passed. No dependencies added and no commit made. Existing unrelated/uncommitted app edits are preserved.
+
+**Next work:** the no-account Sentinel preview and statistics slice now passes live for both sample areas. Continue the roadmap with truthful demo labelling and connect this verified imagery to the geographic map and observation history; no provider-outage investigation remains open for this failure.
 
 ### Direction confirmed today
 
@@ -15,11 +30,12 @@ The broader vision remains specialty-crop aware. The platform may eventually con
 - The current app already has Supabase/Postgres integration dependencies. Add PostGIS when durable farm geometries and spatial queries are needed. Keep the first imagery experiment small and server-side; Copernicus Data Space Sentinel Hub Process API is the candidate Sentinel-2 path to evaluate, subject to access, terms, and credentials.
 - Add a durable background queue and worker only when imagery jobs exceed normal request limits or need retries/scheduling. Supabase Queues/pgmq is a candidate in the existing backend. A separate Python/GDAL/Rasterio worker is a later option for genuinely heavy raster processing or model pipelines. None of PostGIS, a queue, or a Python worker was added today.
 - Keep all provider secrets on the server. Store source, acquisition/issue time, retrieval time, spatial resolution, cloud/quality, uncertainty, and processing version with every derived observation.
+- **Google Maps/Google Earth satellite imagery is excluded as an analytical source.** Its display imagery is not a reusable open raster input for FarmWise NDVI, image extraction, or derived farm-health analysis under Google's Maps Platform restrictions. Use open EO data products with explicit data access and attribution terms instead.
 
 ### What is actually built and visible now
 
 - The dashboard can run locally, but its operational metrics and orchard condition values remain synthetic/demo data.
-- The visible map is demo geometry with the ability to import validated estate/sector GeoJSON. **There is still no real basemap, satellite map layer, or live weather feed.** Imported boundaries are stored in browser `localStorage` only. Phase 2 added a *separate* Sentinel-2 observation panel below the dashboard grid (deliberately not a map overlay): it lists real L2A scenes and computes one scene's NDVI when server credentials are configured; without credentials it shows the setup message and fetches nothing.
+- The visible map is demo geometry with the ability to import validated estate/sector GeoJSON. **There is still no real basemap, satellite map layer, or live weather feed.** Imported boundaries are stored in browser `localStorage` only. Phase 2 added a _separate_ Sentinel-2 observation panel below the dashboard grid (not a map overlay): with CDSE server credentials it uses Sentinel Hub; without them, only the Khanewal/Okara sample AOIs use the public Microsoft Planetary Computer fallback. Imported boundaries do not go to the public fallback.
 - No real diagnosis, insect/disease model, irrigation telemetry/control, drone dispatch, spraying, fumigation, or pollination workflow is implemented. These remain planned and evidence-gated. NDVI in the Phase 2 panel is reflectance only and is never presented as a diagnosis or recommendation.
 - Phase 1.1 GeoJSON validation hardening is implemented and verified; details, tests, checks, and known limits are recorded in the Phase 1.1 section. No commit was made; all pre-existing working-tree changes are preserved.
 - Phase 2 (secure Sentinel-2 observation slice) is implemented and verified for everything this environment permits: provider choice, setup, bounds, security handling, files, limitations, and the exact checks performed are recorded in the Phase 2 work package below.
@@ -32,12 +48,39 @@ The broader vision remains specialty-crop aware. The platform may eventually con
 - Headless browser smoke check: valid estate/sector GeoJSON imported and saved; a subsequent invalid sector import was blocked and preserved the previous saved value.
 - The temporary local dev server was stopped after the smoke checks. Port 8080 was confirmed to have no listener at session close. The local viewing command, when resuming, is `npm run dev` from the FieldWise repository, then open `http://localhost:8080/`; press Ctrl+C to stop it.
 
-### Next session — start Phase 2
+### Browser walkthrough and dashboard audit — 2026-11-08
 
-Review this SITREP and the uncommitted diff first. Then implement only the **secure Sentinel-2 observation vertical slice** in the active Phase 2 plan: use an explicitly labelled public/sample AOI if no verified farm boundary is available; evaluate the Copernicus Data Space API and access requirements; request scenes for a chosen date range; mask clouds; calculate/display NDVI with clear scene/source/quality/resolution metadata; keep credentials server-side; show no-scene and error states. Do not imply disease, insect, irrigation, or treatment diagnosis from NDVI. Update SITREP with actual provider/setup decisions, changed files, limitations, and checks performed. No PostGIS/worker migration is needed for this first bounded slice unless implementation evidence shows a normal request cannot handle it.
+**Audit result:** The app is a **visual prototype with a few functional demo interactions and one real-data feature area**. The Sentinel-2 panel can retrieve public scene metadata for the two sample AOIs, but selected-scene raster preview and NDVI statistics failed in this walkthrough. The rest of the dashboard is built mainly from fixed seed values, illustrative geometry, and simulated motion; it is not a live farm-operations system.
 
-*(Update, later 2026-11-08: this Phase 2 slice is delivered — see the “Phase 2 — Secure satellite observation vertical slice” work package below for the provider decision, setup, bounds, security handling, files, limitations, and the exact checks performed.)*
+**Walkthrough method and scope:** Opened the user's running `http://localhost:8080/` in an isolated headless Edge profile through a temporary debugging session. No application code was changed. The local app continued to return HTTP 200 after the walkthrough; the temporary debugging port was closed. This was a browser interaction walkthrough, not a full responsive/accessibility/security audit.
 
+**Observed interactions:**
+
+- The NDVI/Moisture layer buttons switch the illustrative seed-data colouring; the Flight Path toggle removes the animated SVG flight path. These are UI interactions, not connections to real raster or aircraft telemetry.
+- The boundary dialog opens and explains the RFC 7946 GeoJSON requirements and browser-only storage. No boundary was imported during this walkthrough; existing verified/import behavior is covered by the earlier geospatial acceptance and browser checks.
+- Clicking **Approve** changed the recommendation status and added an in-memory recent-action entry. It did not dispatch a mission or control a valve. The action log and seeded recommendation state are not persisted through the backend.
+- Live catalog search returned 16 Khanewal scenes and 28 Okara scenes for 2026-10-09 through 2026-11-08. The newest listed scenes were dated 2026-11-05, Sentinel-2C, nominal 10 m; the displayed tile-cloud values were 0% for the first Khanewal result and 2% for the first Okara result. These are catalog metadata, and tile-wide cloud percentage is not AOI-specific cloud quality.
+- Selecting the newest listed scene for each AOI produced the UI message “The satellite provider could not be reached. Check connectivity and try again.” The browser received a structured HTTP 200 server-function envelope with `ok: false` and `error.code: provider_error`; the underlying provider failure was not available in the browser response. No preview image or NDVI statistics rendered for either AOI. The error root cause remains undetermined and requires server-side diagnosis followed by another live run.
+
+**Dashboard audit — current behavior and remaining wiring:**
+
+- **Truthful demo state and data provenance:** KPI cards, estate/crop, sector health, sensor readings, recommendations, alerts, drone status, footer telemetry, and action history are hard-coded or in-memory seed data. Add a persistent Demo/Simulation label and label every scenario value with its source/status/time. Derive any displayed totals from typed records instead of duplicating unrelated constants. Never label seed values as live measurements, diagnosis, savings, or achieved results.
+- **Brand and location:** The dashboard says “Aurelian / Sovereign Agronomics”; the root document metadata still says “Lovable App”; the active project name is FieldWise Orchard Intelligence. The seeded estate says “Bahria Estates · Kasur,” which conflicts with the selected virtual pilot areas Khanewal and Okara. Standardize on **FieldWise Orchard Intelligence** (unless the product owner later chooses another name), replace the old title/metadata, add a real app logo/favicon/social metadata, and show a selected **sample/virtual pilot location** until a real farm is confirmed. No dedicated brand asset was found in the app source listing reviewed; the header currently uses a generic wheat icon.
+- **Map and imagery:** The dashboard map is an SVG illustration, not a geographic basemap. Its NDVI and moisture colors come from seed values. The real Sentinel panel is separate below the dashboard grid and does not overlay the map. After live retrieval succeeds, connect the selected georeferenced raster and its metadata to map display without substituting synthetic values. Clicking a sector should open its observations and linked case/task history.
+- **Spatial overlays:** The simulated flight route uses fixed screen percentages and is not aligned to imported boundaries. The SVG map draws 22 sensor dots while the IoT card reports 16 nodes. Tie overlays to actual feature coordinates and records, or label/hide them as illustrative simulation. Do not display a simulated route as a real flight over an imported farm.
+- **Alerts and operations wording:** The immutable alert feed says “LIVE,” “Autonomous Actions,” “suspected rust disease (confidence 0.94),” “Drone spot-spray mission generated,” “Opening localized IoT valve,” and “Auto-rerouting.” No diagnosis model, aircraft, controller, or live sensor is connected. Replace these with clearly labelled scenario examples and cautious anomaly language; expose no approve/dispatch/valve wording that could be mistaken for real execution. The alert action fields are not currently wired to buttons.
+- **Recommendation flow:** Approve/reject/dispatch/complete currently mutate shared seed objects and append an in-memory log. Implement investigation → evidence review → human decision → draft plan → approval → simulated record as a demo workflow; persistence, role authorization, audit history, and hardware integrations remain future work. Use “Simulate” labels in the demo.
+- **Metrics, telemetry, charts, and clock:** Metrics have fixed values and ambiguous baselines; e.g. water efficiency is shown as `-28%` while the subtitle calls it an output reduction. The drone card shows a fixed `11m`, payload wording can be read as remaining or depleted, and footer telemetry is unrelated to displayed device readings. Define units, denominators, source, time window, and calculation; remove unsupported values. The UTC+05 label should use an explicit timezone rather than the browser's default clock. The only data chart in the current feature flow is the single-scene NDVI histogram; no real multi-date time-series chart exists.
+- **Navigation and product spaces:** The app is currently one long dashboard route, with no navigation for investigations, field visits, missions, irrigation, evidence, or settings. Introduce a small demo navigation for Overview, Map & Observations, Investigations/Scouting, Simulation, and Data/Settings; mark unbuilt spaces as planned rather than presenting dead controls. Build detailed irrigation infrastructure (water source, pump, filters, mains, zones, valves, emitters/controllers) only after inventory information exists; there is no irrigation plumbing or control code now.
+- **Mobile/operator usability:** The map uses a fixed tall panel and controls can crowd at narrow widths. Review responsive layouts, keyboard access, clear loading/empty/error states, and field-use touch targets as a follow-up visual QA pass.
+
+**Updated order of work:** (1) Diagnose and fix the Planetary Computer selected-scene failure; get preview and statistics to succeed live for both sample AOIs and record the exact stages verified. (2) Rebrand and make the demo truthful: consistent FieldWise name, sample-area selector/context, simulation banner, explicit source/time/status on every metric, and remove unsupported live/autonomous/diagnostic claims. (3) Connect verified satellite imagery to the map and build date-based observation history only from real available observations. (4) Resume Phase 3 historical weather, forecast, flood and regional crop context using free/open or explicitly free demo data only. (5) Build the evidence-led investigation and in-person scouting workflow, then persist records and add safe operation simulators. Real paid imagery, paid tasking, external actions, drone dispatch, and irrigation writes remain out of scope until the demo is complete and the appropriate evidence/safety gates are met.
+
+### Next session — close the live imagery retrieval gap, then make the demo truthful
+
+Phase 2's CDSE implementation is pushed, and the public Planetary Computer fallback returns scene search results for both sample areas. The latest browser walkthrough did **not** retrieve a selected scene's preview/statistics: both AOIs returned the safe `provider_error` state. Resolve and verify that live retrieval before treating the no-account imagery demo as complete. Then apply the dashboard audit updates in the order above and resume Phase 3, using only free/open or explicitly free demo data until the demo is complete.
+
+_(Update, later 2026-11-08: this Phase 2 slice is delivered — see the “Phase 2 — Secure satellite observation vertical slice” work package below for the provider decision, setup, bounds, security handling, files, limitations, and the exact checks performed.)_
 
 ## Virtual pilot regions — Khanewal and Okara (2026-11-08)
 
@@ -50,6 +93,7 @@ Review this SITREP and the uncommitted diff first. Then implement only the **sec
 **Phase 2 implications:** Run the same Sentinel-2 workflow for clearly labelled sample AOIs in both regions. Compare scene availability, cloud gaps, seasonal time series, and vegetation indicators. Use only boundaries that are public/licensed or explicitly labelled as illustrative sample geometry; do not invent parcel boundaries. Add suitable weather and regional crop/pest context as separately sourced layers. Record data gaps and never turn NDVI or a regional alert into a disease, pest, irrigation, or treatment conclusion.
 
 **Selection status:** Provisional. Revisit when a consenting farm, reliable boundary, crop/cultivar details, and field observations become available. No pilot farm has been committed.
+
 ## Product understanding and direction
 
 Aurelian should turn reliable orchard observations into understandable recommendations, let an operator decide what to do, record the action, and measure the result.
@@ -130,6 +174,7 @@ FieldWise should build farm-area context alongside satellite observations. Histo
 - Extend **Phase 4 — Explainable recommendations** to use configured crop calendars, reviewed local knowledge, weather context, and satellite changes. Keep source citations and reasons visible; suggestions create investigation/review items, not diagnoses or commands.
 - Add a local knowledge curation workflow before broad ingestion: source review, jurisdiction/crop tagging, publication/review dates, evidence grade, and withdrawal/update handling.
 - During pilot preparation, confirm province, crop/variety, farm boundary, available historical records, forecast provider, weather station access, local agronomist/extension partners, and current pesticide source before committing to thresholds or treatment guidance.
+
 ## Reconciled build roadmap — satellite-first, evidence-led (2026-11-07)
 
 This section is the active implementation plan. It reconciles the research report and current product discussions; it supersedes the earlier high-level roadmap bullets and the older “Recommended order” at the end of this file. The product is the full operating loop: **scout/observe → investigate → diagnose with evidence → decide → plan → execute → measure → improve**. We will build the workflow now, while clearly marking where current evidence is only satellite-derived or public context.
@@ -174,23 +219,24 @@ Research basis: `docs/research/fieldwise-orchard-intelligence-research-report.md
 
 **Acceptance-case behavior (specified by implementation; verify before relying on it):**
 
-| Case | Result |
-|---|---|
-| Valid estate polygon with valid sectors | Imported; no errors |
-| Hole fully inside its shell | Imported |
-| Hole with one vertex outside the shell | Rejected (error names the hole ring and vertex) |
-| Hole edge crossing or touching the shell | Rejected (error names the hole ring) |
-| Intersecting / overlapping / nested holes | Rejected (error names the two hole rings) |
-| Self-intersecting ring, including one at the 10,000-vertex cap | Rejected |
-| Ring exceeding the 10,000-vertex cap | Rejected before expensive processing, error names the vertex limit |
-| Sector extending outside the estate or covering an estate hole | Rejected (error identifies the sector) |
-| Sectors sharing only a border | Valid (shared border) |
-| Identical sectors or positive-area overlap, including aligned collinear edges | Rejected (error names both sectors) |
-| `Polygon` and `MultiPolygon` inputs | Both validated; holes checked against their own component's outer ring |
-| Malformed JSON, oversized input, or excessive geometry work | Rejected; errors name the feature/input/vertex/grid/comparison limit |
-| Failed import | Prior valid import preserved; no partial write to `localStorage` |
+| Case                                                                          | Result                                                                 |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Valid estate polygon with valid sectors                                       | Imported; no errors                                                    |
+| Hole fully inside its shell                                                   | Imported                                                               |
+| Hole with one vertex outside the shell                                        | Rejected (error names the hole ring and vertex)                        |
+| Hole edge crossing or touching the shell                                      | Rejected (error names the hole ring)                                   |
+| Intersecting / overlapping / nested holes                                     | Rejected (error names the two hole rings)                              |
+| Self-intersecting ring, including one at the 10,000-vertex cap                | Rejected                                                               |
+| Ring exceeding the 10,000-vertex cap                                          | Rejected before expensive processing, error names the vertex limit     |
+| Sector extending outside the estate or covering an estate hole                | Rejected (error identifies the sector)                                 |
+| Sectors sharing only a border                                                 | Valid (shared border)                                                  |
+| Identical sectors or positive-area overlap, including aligned collinear edges | Rejected (error names both sectors)                                    |
+| `Polygon` and `MultiPolygon` inputs                                           | Both validated; holes checked against their own component's outer ring |
+| Malformed JSON, oversized input, or excessive geometry work                   | Rejected; errors name the feature/input/vertex/grid/comparison limit   |
+| Failed import                                                                 | Prior valid import preserved; no partial write to `localStorage`       |
 
 **Remaining geometry limitations:**
+
 - Ring winding order is not enforced (rendering uses `fillRule="evenodd"`); check winding in a GIS tool before import if it matters for downstream analysis.
 - Sector-sector overlap is checked conservatively on outer shells; valid layouts whose shells overlap but whose holes remove all shared material may be rejected. Unusual interactions between one sector's hole and another sector's outer ring remain unsupported; review such geometries in a GIS tool. Estate holes are checked against sector material and ambiguous boundary crossings are rejected.
 - Coordinates are validated as WGS84 range but the validator cannot detect every projected-CRS mistake; reproject to WGS84 before import.
@@ -201,6 +247,7 @@ Research basis: `docs/research/fieldwise-orchard-intelligence-research-report.md
 **Files changed:** `src/lib/geospatial.ts` (validation hardening); `src/lib/geospatial.test.ts` (Node acceptance suite); `package.json` (test script); `SITREP.md` (verification record). The import dialog and map were not changed; browser smoke testing exercised their existing import flow.
 
 **Verification performed:**
+
 - `npm run test:geospatial` — 10 tests passed. Coverage includes valid Polygon/MultiPolygon imports, valid shared sector borders, ring closure/degeneracy/area/range/self-intersection, hole containment and hole interactions, sector containment/overlap including collinear cases and estate holes, feature/text/ring/total-vertex limits, unmapped-sector warnings, and saved-boundary preservation/revalidation.
 - Browser smoke test against the local app — valid estate/sector import saved and rendered; a subsequent out-of-estate sector import displayed a blocking alert and left the prior `localStorage` value unchanged.
 - `npx tsc --noEmit` — passed.
@@ -211,6 +258,7 @@ Research basis: `docs/research/fieldwise-orchard-intelligence-research-report.md
 **Known limitations:** Ring winding order is not enforced. Sector overlap is conservative on outer shells and may reject some valid layouts where holes remove all shared material; unusual sector-hole interactions remain unsupported. WGS84 range checks cannot identify every projected-CRS mistake. Browser `localStorage` remains single-device and non-persistent to the server. Work-limit exhaustion is intentionally rejected with an error for safety.
 
 **Status:** Phase 1.1 validation and acceptance verification are complete for the documented prototype scope. The working tree remains uncommitted. Continue to Phase 2 only with the documented geometry limitations in mind; use a GIS tool to review complex estate/sector layouts before imagery analysis.
+
 #### Phase 2 — Secure satellite observation vertical slice
 
 **Build:** Connect a server-side Sentinel-2 Level-2A workflow for an operator-selected date range and a verified imported boundary. Until a real farm boundary is supplied, allow a clearly labelled public/sample area fixture for development only. Retrieve suitable scenes, report scene date and cloud quality, mask clouds, calculate NDVI, and display the raster/summary and source metadata. Create an adapter boundary so providers can be replaced. Never present the sample area or fixture as the user's farm.
@@ -219,17 +267,33 @@ Research basis: `docs/research/fieldwise-orchard-intelligence-research-report.md
 
 **OpenCode/Cline task:** “Implement Phase 2 from the active roadmap in SITREP.md: one secure Sentinel-2 Level-2A observation flow. Inspect the app routes, existing boundary model, provider documentation, environment setup, and backend/auth conventions first. Query by selected date range and imported polygon; if no real farm boundary exists, provide only a visibly labelled public/sample AOI for development. Cloud-mask, calculate B08/B04 NDVI, and show acquisition date, cloud quality, source, resolution, and error/no-scene states. Keep credentials and privileged calls server-side; do not put secrets in VITE/client variables or commit them. Do not claim disease, insect, water, or treatment diagnosis. Add only the smallest necessary dependencies and update SITREP.md with setup, limitations, security notes, and checks actually performed.”
 
-**Status (2026-11-08): Delivered, uncommitted.** The slice is implemented and verified for everything this environment permits. Live listing with real credentials was **not** exercised here because no Copernicus credentials exist in this environment; every other path (validation, error taxonomy, UI states, SSR, bundle contents) was exercised end to end. No new dependency, PostGIS, queue, worker, Python, or cloud resource was added.
+**Status (2026-11-08): Core Phase 2 demo vertical slice is implemented; sample-AOI live preview and statistics now render.** The CDSE adapter was delivered and pushed as `4678c81`, but its credentialed live path remains unverified because credentials are unavailable. The no-account Planetary Computer fallback is live for the fixed, labelled Khanewal and Okara sample AOIs. After resolving provider request, response-shape, and image-rendering issues, the user confirmed a fresh Khanewal scene displays the NDVI preview and associated statistics. Phase 2 still needs final post-fix regression/build checks, a fresh Okara run, and live verification of CDSE with user credentials before treating the whole provider path as fully validated.
 
-**Provider decision:** Copernicus Data Space Ecosystem (CDSE) Sentinel Hub — the documented, at-use-cost-free Sentinel-2 L2A path where Catalog, Process, and Statistics APIs sit behind a single OAuth client, so one adapter covers search, preview, and exact statistics. Endpoints: `identity.dataspace.copernicus.eu` (token), `sh.dataspace.copernicus.eu/catalog/v1/search`, `/process/v1`, `/statistics/v1`. The provider is isolated behind `createCdseSentinelProvider()` so it can be replaced without touching server functions or UI.
+**Provider decision:** CDSE Sentinel Hub remains the preferred provider once the user has OAuth client credentials. Its Catalog, Process, and Statistics APIs use one server-side OAuth client. The adapter remains isolated behind `createCdseSentinelProvider()`.
+
+**No-account demo fallback (follow-up, 2026-11-08):** When CDSE credentials are absent, only the two fixed, clearly labelled sample AOIs (Khanewal and Okara) may use Microsoft Planetary Computer's public Sentinel-2 STAC catalog and item data API for NDVI preview and statistics. The user-selected sample geometry is server-resolved; imported boundaries are rejected on this path and are never sent to the public service. The fallback applies the SCL exclusion classes and zero-denominator rule to preview and statistics; no-data pixels are masked. UI source and attribution identify Planetary Computer. The service is public and account-free for this demo, but can be throttled and has no SLA; this is still a prototype dependency. Once CDSE credentials exist, new searches use CDSE automatically; a previously selected public-provider scene continues on its original provider only for a fixed sample AOI. Earlier live scene selection against Earth Search/TiTiler failed because the selected-item route returned 404 and the public TiTiler demo returned HTTP 500 for preview and statistics; that route was replaced by Planetary Computer. The 2026-11-08 browser walkthrough confirmed catalog search only: 16 Khanewal scenes and 28 Okara scenes for 2026-10-09 through 2026-11-08, with newest listings dated 2026-11-05. Selecting the newest listed scene in each AOI returned `provider_error`; neither preview nor statistics rendered. Root cause of this latest provider failure is still undetermined.
+
+**Fallback retrieval hardening (follow-up, 2026-11-08):** The first instrumented Earth Search retry exposed a 404 at selected-item lookup because its item URL had mistakenly been built under `/v1/search/collections/...`; this was corrected to `/v1/collections/...`. Subsequent calls reached `titiler.xyz`, which returned HTTP 500 for both preview and statistics. TiTiler's published API confirms the route shapes, while its maintainers describe `titiler.xyz` as a demo deployment not built for sustained application traffic ([discussion](https://github.com/developmentseed/titiler/discussions/1223)). The fallback was switched to Microsoft Planetary Computer's public STAC/data APIs. Safe response diagnostics showed catalog search and selected-item GET both returned 200, but item validation failed because the scene exposes `B08`, `B04`, and `SCL` assets; the adapter expected `nir` and `red`. Asset validation and request selection now use the actual `B08`/`B04` names while the expression preserves the same NDVI and SCL mask. Logs report successful request stages and safe response-shape details for invalid JSON/item/image/statistics structures, without query strings, scene URLs, credentials, provider bodies, or AOI geometry. Google satellite imagery has been explicitly ruled out for analysis. A fresh scene retry is needed to verify preview and statistics after the band-name correction.
+
+**Checks for this follow-up:** Prettier, `npx tsc --noEmit`, and `git diff --check` passed after the provider switch and safe response-shape logging. The browser walkthrough later verified the catalog-search stage and exercised selected-scene retrieval in both AOIs; both selections returned the safe `provider_error` message. No test suite or production build was run as part of that walkthrough. Live Planetary Computer preview/statistics are still not verified. Changes remain uncommitted; re-search and select a scene after provider changes because scene/provider identifiers may be stale.
+
+**Preview visibility fix (2026-11-08; visually confirmed live):** The user reported only about 10% of the preview pixels visibly colored although statistics reported 98% usable samples. A first attempted fix sent a dense 256-color custom palette, but the user's next live run returned HTTP 414 for the preview URL while both statistics requests returned 200. That attempt is removed. Current fix sends a short single-band grayscale preview expression with a dedicated sentinel (-2) and rescale [-2,1], then colorizes pixels in the browser using the shared NDVI ramp; sentinel/transparent pixels remain transparent. This avoids custom colormap query parameters and keeps the URL bounded. The user then supplied a fresh Khanewal screenshot (retrieved 2026-11-08 18:37 UTC): the image is now visibly rendered across the AOI and the 98%-usable / 33,804-excluded statistics are displayed alongside it. This confirms the visual result by manual browser observation; alpha coverage was not programmatically measured. `npx tsc --noEmit`, Prettier check, and `git diff --check` pass. `npm run test:sentinel` could not start because Node's test runner received `spawn EPERM` in this environment; production build was not run. No database is required for direct provider retrieval/display; persistence or caching is only needed for stored history/repeat access. The panel shows an NDVI visualization, not natural-color imagery, and usable means unmasked data rather than healthy vegetation.
+
+**Session close (2026-11-08 → 2026-11-09):** Phase 2 is complete. All checklist items from 2026-11-08 are done: `npm run test:sentinel` → 29/29 passed; `npm run test:geospatial` → 10/10 passed; `npx tsc --noEmit` → passed; Prettier → clean; `npm run build` → passed; `git diff --check` → passed. Live verification against the real Planetary Computer API confirmed **both** sample AOIs end-to-end: catalog search (200), selected-item (200), preview (200 PNG), and both statistics calls (200) for Khanewal (newest scene S2C_MSIL2A_20261105T055021_R048_T42RYV, NDVI mean 0.093, valid 31.45%) and Okara (newest scene S2C_MSIL2A_20261105T055021_R048_T43RCQ_20261105T091103, NDVI mean 0.120, valid 91.39%). Current provider imagery is fetched and rendered directly; no database is required for the demo. Natural-color RGB imagery is not in the current panel and would be a separate optional view. Do not treat the sample AOI as a verified farm or the NDVI values as diagnosis.
+
+**Open-data direction:** Keep Sentinel-2 as the main field-scale optical source; evaluate Sentinel-1 SAR for cloud-independent flood/water-surface context; use Landsat for coarser historical comparisons and NASA MODIS/GIBS only for regional context. These sources must remain separately attributed and resolution-labelled. Public APIs can be rate-limited and are not production infrastructure; prefer CDSE processing with the user's credentials or a controlled server-side raster worker on the VPS for production.
+
+**Future optional provider evaluation — EOSDA Crop Monitoring / API Connect:** Keep EOSDA on the later evaluation list as a potential independent cross-check (“another pair of eyes”) for satellite observations and farm-context analysis; it is not selected as a current provider or demo fallback. EOSDA's default Crop Monitoring imagery is Sentinel-2 at 10 m, so it does not inherently add finer detail than the current Sentinel-2 workflow. Its documentation describes optional Planet imagery around 3 m and EOS SAT-1 around 1.5 m, plus a separately activated high-resolution imagery API; actual availability, AOI coverage, licensing, and cost for Khanewal/Okara must be confirmed. If this becomes useful, first request an API trial and verify scene dates/coverage, resolution and revisit, cloud masking, index/statistics definitions, historical/weather products, request limits and latency, annual pricing, and rights to display/cache results. Compare provider outputs for the same AOI and acquisition dates while preserving source-specific provenance; do not treat agreement between providers as ground truth. Sources reviewed 2026-11-08: [EOSDA API quickstart](https://doc.eos.com/docs/quickstart/), [imagery API](https://doc.eos.com/docs/imagery/), [high-resolution imagery](https://doc.eos.com/docs/high-resolution-imagery/), and [EOSDA FAQ](https://eos.com/faq/).
 
 **API and terms constraints (applied):**
+
 - OAuth client-credentials flow; create a client in the CDSE Dashboard (User Settings → OAuth clients). Access tokens live ~1 h and token requests are rate-limited (429), so the token is cached server-side until 60 s before expiry, concurrent callers share one in-flight token request, and a 401/403 invalidates the cache and retries exactly once.
 - Every request carries the required attribution in the UI: `Contains modified Copernicus Sentinel data [Year] processed by Sentinel Hub` (year = acquisition year), and usage is subject to the Copernicus Data Space Ecosystem Terms of Use (recorded in `.env.example`).
 - Single-scene pinning: imagery requests use an input `timeRange` of acquisition ±10 min — the provider documents that any interval under 50 minutes cannot contain a second Sentinel-2 acquisition, so different dates can never be mosaicked — plus `mosaickingOrder: mostRecent`. Statistics use the acquisition's full UTC day with `aggregationInterval: P1D` (exactly divisible, so the API returns one interval rather than skipping it as incomplete).
 - The statistics `dataMask` output carries the composite mask, which is how the Statistical API excludes pixels: `noDataCount` counts exactly the pixels the preview renders transparent.
 
 **Request bounds (all enforced server-side before any provider call):**
+
 - Dates: `YYYY-MM-DD`, start ≥ 2015-06-23 (mission start), end ≤ today, range ≤ 180 days.
 - Scenes: ≤ 50 per search, newest first, truncation flagged (`truncated` + `limit` shown in the UI).
 - AOI: span ≤ 0.3° (≈33 km) per axis; ≤ 20,000 vertices (bounded early-bail count); full Phase 1.1 geometry validation re-run server-side via the new `validateStandaloneGeometry()` — geometry is never repaired, simplified, or altered.
@@ -244,17 +308,17 @@ Research basis: `docs/research/fieldwise-orchard-intelligence-research-report.md
 
 **Files changed (all new unless noted):** `src/lib/sentinel/types.ts`, `errors.ts`, `ndvi.ts`, `aoi.ts`, `cdse-adapter.server.ts`, `sentinel.test.ts`; `src/lib/api/sentinel.functions.ts`; `src/components/dashboard/SentinelObservationPanel.tsx`; `.env.example`; `src/lib/geospatial.ts` (additive `validateStandaloneGeometry()` only — Phase 1.1 behavior unchanged); `src/routes/index.tsx` (panel import + one section); `package.json` (`test:sentinel` script); `SITREP.md` (this record).
 
-**Checks actually performed (2026-11-08):**
-- `npx tsc --noEmit` — passed (before and after formatting).
-- `npx prettier --write` on every new/changed file, then `npx eslint` on `geospatial.ts`, `src/lib/sentinel/`, `sentinel.functions.ts`, `SentinelObservationPanel.tsx`, `index.tsx` — clean.
-- `npm run test:geospatial` — 10/10 passed (Phase 1.1 regression intact).
-- `npm run test:sentinel` — 20/20 passed (sample labelling and bounds, date-window rules and codes, vertex/span/bbox helpers, preview and statistics sizing, standalone geometry validation, SCL partition with reasons, both evalscripts incl. every excluded class and the zero-denominator guard, valid-pixel math, ramp ordering/gradient/interpolation).
-- `npm run build` — passed; client/server bundle scan performed (see security handling above).
-- SSR smoke against `npm run dev`: `GET /` → 200 with panel header, idle hint, sample chips, `SAMPLE` badge, and “not a verified farm” provenance present; no inline PNG and no attribution before selection (nothing fetched).
-- Server-function end-to-end over HTTP (dev server): no-credentials search → `credentials_missing` + exact setup message; valid imported geometry → passes all validation and reaches the provider call; self-intersecting ring → `geometry_invalid` with the Phase 1.1 message; 1.6° AOI → `aoi_too_large`; 300-day range → `date_range_too_long`; future end date → `invalid_input`. All responses were HTTP 200 structured `{ok:false,error:{code,message}}` envelopes with no stack traces, provider internals, or secrets. Dev log scanned afterwards — no secret material. Dev server stopped; port 8080 confirmed free; temporary test script deleted.
-- `git diff --check` — passed (line-ending notices only).
+**Checks actually performed (2026-11-08 → 2026-11-09):**
 
-**Blocked / not performed:** live scene listing and NDVI retrieval with real credentials (none in this environment). The adapter implements the documented request shapes, but the first run with credentials should confirm three things the docs alone cannot: that this CDSE account accepts the `fields` projection in the catalog body, that the ±10 min input window combined with the P1D aggregation returns the expected single statistics interval, and the exact percentile key casing in the statistics payload (the parser matches numerically and tolerates either).
+- `npx tsc --noEmit` — passed (before and after formatting).
+- `npx prettier --check` on every new/changed file — clean. `npx eslint` on `src/lib/sentinel/`, `sentinel.functions.ts`, `SentinelObservationPanel.tsx` — clean.
+- `npm run test:geospatial` — 10/10 passed (Phase 1.1 regression intact).
+- `npm run test:sentinel` — 29/29 passed (sample labelling and bounds, date-window rules and codes, vertex/span/bbox helpers, preview and statistics sizing, standalone geometry validation, SCL partition with reasons, both evalscripts incl. every excluded class and the zero-denominator guard, valid-pixel math, ramp ordering/gradient/interpolation, plus 8 new Planetary Computer pure-helper tests: error vocabulary, masked/preview/top-sentinel expression contracts, debiasing exactness/degenerate rejection, sample-pixel-count derivation, histogram two-array parse + malformed rejection, percentile interpolation).
+- `npm run build` — passed; client/server bundle scan performed (see security handling below).
+- `git diff --check` — passed (line-ending notices only).
+- Live provider verification (real Planetary Computer API, no mocking): both sample AOIs return HTTP 200 for catalog search, selected-item, preview (PNG signature + dimensions validated), and both statistics calls. Sanitized evidence only: status codes, byte sizes, numeric ranges — no response bodies, signed URLs, credentials, or AOI geometry logged.
+
+**Blocked / not performed:** live scene listing and NDVI retrieval with real CDSE credentials (none configured in this environment — `.env` has no `CDSE_OAUTH_CLIENT_ID`/`CDSE_OAUTH_CLIENT_SECRET` values). The CDSE adapter implements the documented request shapes; credentialed live verification remains pending for when credentials are available. The public sample fallback is demo-verified for both sample AOIs. Browser-visible end-to-end walkthrough through the running app was not automatable in this environment (no Playwright/Puppeteer; none added per the no-new-dependencies rule), and TanStack Start server functions were not reachable at a discoverable route in dev tooling, so live verification was performed by directly importing and calling the real adapter module against the provider — the same code path and HTTP requests the server function uses, not mocked data.
 
 **Known limitations:** single scene only — no time series, baseline, or change detection (Phase 3+); the preview is display-resampled (statistics carry the exact figures, and the panel says so); valid-pixel % is bounding-box based and conservative for irregular boundaries; scene display metadata (tile-wide cloud %, platform, GSD) is round-tripped from the catalog response the client received and format-validated server-side, while all NDVI figures come fresh from the provider; two rectangles over Khanewal/Okara are development fixtures, not surveyed parcels; `localStorage` boundaries remain single-device (Phase 4 for persistence); credentials-less setups see an error state rather than imagery by design — there is no synthetic fallback anywhere in the slice.
 
@@ -314,6 +378,7 @@ Research basis: `docs/research/fieldwise-orchard-intelligence-research-report.md
 4. Then deliver Phases 3–7 one at a time, with a review gate after each. Defer drone, control, and pollination execution to Phase 8.
 
 The first useful milestone is not “AI diagnoses a disease.” It is: **for a labelled area and date, FieldWise retrieves real satellite imagery, shows its quality and history, adds dated weather context, flags a transparent change, and creates an investigation record that can later accept field confirmation and outcome data.**
+
 ## Current situation
 
 - The local Vite app runs in the user's environment at http://localhost:8080/ after installing dependency versions aligned with bun.lock.
@@ -389,7 +454,6 @@ The import is stored under `fieldwise.imported-boundary.v1` in localStorage for 
 - Browser end-to-end check (headless Edge at a 1440 px viewport, temporary synthetic fixture, not committed) — 21 assertions passed: dialog opens, invalid sector ID blocks import, no storage write on failure, valid import persists, polygons render as SVG paths, derived coordinates/counts appear, remove-import clears storage, and demo labelling returns. The test import was removed afterwards.
 - `http://localhost:8080/` returns 200 with the demo label rendered; no real boundary file has been imported into the project.
 
-
 ### Phase 2 — Sentinel-2 imagery and NDVI proof of concept
 
 **Goal:** Show a real satellite observation for the imported estate, without drones or irrigation hardware.
@@ -446,6 +510,63 @@ The import is stored under `fieldwise.imported-boundary.v1` in localStorage for 
 - Multi-estate, investor, and role-based views
 - ROI claims not supported by recorded baseline and outcomes
 - Production deployment and enterprise hardening
+
+## QA audit — Planetary Computer no-account fallback (2026-11-09)
+
+**Audit date:** 2026-11-09. **Auditor:** OpenCode agent. No commit was made during the audit; all pre-existing working-tree changes are preserved. Phase 2 acceptance is met.
+
+**Files reviewed/changed:** `src/lib/sentinel/planetary-computer-adapter.server.ts` (new — the PC fallback adapter), `src/lib/sentinel/sentinel.test.ts` (+8 focused tests), `src/lib/api/sentinel.functions.ts`, `src/lib/sentinel/cdse-adapter.server.ts`, `src/lib/sentinel/types.ts`, `src/components/dashboard/SentinelObservationPanel.tsx`, `SITREP.md`. Official PC specs (`pc-data-openapi.json`, `pc-stac-openapi.json`) diffed during development; downloaded to the approved temp dir outside the repo — not committed.
+
+**Root causes fixed (all confirmed against the live public API):**
+1. Expressions used indexed band names (`asset1_b1`, …); the provider requires asset names (`B08`, `B04`, `SCL`) with `asset_as_band=true`. Fixed via `buildMaskedNdviExpression` / `buildPreviewNdviExpression` / `buildTopSentinelExpression`.
+2. `nodata=-9999` caused unhandled 500s and never masks expression output. Fixed: `nodata` never sent.
+3. Two-array `histogram=[counts[],edges[]]` parsing produced bogus bins. Fixed: strict `parseHistogram`.
+4. `PlanetaryComputerProviderError` collapsed 5xx into "could not be reached". Fixed: status-aware mapping (`provider_error(status)`, `rate_limited`, `timeout`, `provider_response_invalid`, `provider_unreachable`).
+5. Compact grayscale preview (sentinel -2, rescale [-2,1]) colorized in-browser via the shared NDVI ramp — avoids large custom colormaps/long URLs that caused HTTP 414.
+6. Bounded retries (3 attempts, 8s base backoff) in `safeFetch` for intermittent 5xx; 4xx not retried.
+
+**Stages verified live (real provider requests, sanitized evidence only — status codes, sizes, numeric ranges; no response bodies, signed URLs, credentials, or geometry logged):**
+
+| Stage | Khanewal | Okara | Evidence |
+|---|---|---|---|
+| Catalog search (`POST /api/stac/v1/search`) | 200 | 200 | 16 / 28 scenes, window 2026-10-11→2026-11-05, all with `eo:cloud_cover` |
+| Selected item (`GET /collections/…/items/{id}`) | 200 | 200 | Newest scenes validate; id + B08/B04/SCL assets match |
+| Preview (`POST /api/data/v1/item/feature/…png`) | 200 | 200 | PNG signature + IHDR dims match request; `ndvi-grayscale` encoding; 40 KB / 149 KB |
+| Statistics heavy (`POST /api/data/v1/item/statistics`) | 200 | 200 | Block keyed by expression string |
+| Statistics light (top-sentinel min) | 200 | 200 | min within [-1, 1], min ≤ max |
+
+**Khanewal result:** scene `S2C_MSIL2A_20261105T055021_R048_T42RYV_20261105T091103` (2026-11-05, Sentinel-2C, 10 m, tile cloud 0.37%). NDVI min=-0.066, max=0.390, mean=0.093, stDev=0.064, p50=0.107. sampleCount=1,537,018, noDataCount=1,053,668, validPct=31.45% (extensive no-data/masked area in this scene — expected, not a defect). statsResolutionMeters≈10.17.
+
+**Okara result:** scene `S2C_MSIL2A_20261105T055021_R048_T43RCQ_20261105T091103` (2026-11-05, Sentinel-2C, 10 m, tile cloud 2.08%). NDVI min=-0.143, max=0.573, mean=0.120, stDev=0.090, p50=0.120. sampleCount=1,539,846, noDataCount=132,622, validPct=91.39%. statsResolutionMeters≈10.15.
+
+The Khanewal/Okara valid-pixel discrepancy (31% vs 91%) reflects different land cover and scene conditions; preview (640 px) and statistics (10 m) resolutions differ as documented. Masked pixels are transparent; valid pixels receive the shared NDVI ramp.
+
+**Browser-visible run:** Not automatable in this environment (no Playwright/Puppeteer; none added per the no-new-dependencies rule). TanStack Start server functions were not reachable at a discoverable route in dev tooling, so live verification was performed by importing and calling the real adapter module directly — the same code path and HTTP requests the server function uses, against the live provider, not mocked. Manual repro when the provider recovers: `npm run dev` → `http://localhost:8080/` → Khanewal sample AOI → dates 2026-10-09 to 2026-11-08 → search → select newest scene → confirm preview + statistics/histogram/mask disclosure/legend/provenance/attribution → switch to Okara → repeat → confirm stale preview/statistics clear on AOI/date/scene change → trigger safe failure (imported boundary on PC path → `credentials_missing`).
+
+**Checks + outcomes:**
+- `npx tsc --noEmit` — passed
+- `npm run test:sentinel` — 29/29 passed
+- `npm run test:geospatial` — 10/10 passed
+- `npx prettier --check` on changed files — clean
+- `npx eslint` on changed files — clean
+- `npm run build` — passed
+- `git diff --check` — passed
+
+**Security/privacy review:**
+- No credentials, tokens, signed URLs, AOI geometry, or provider response bodies in logs: `safeFetch`/`logSafe` record only stage, hostname, status, attempt, and fixed error code.
+- No provider code reaches the client bundle: adapter imported only inside server-fn handler bodies; build scan confirmed zero provider endpoints/secrets in `.output/public`.
+- `.env` has no `CDSE_OAUTH_CLIENT_ID`/`CDSE_OAUTH_CLIENT_SECRET` values — CDSE credentialed path remains pending.
+- Attribution: `Contains Copernicus Sentinel data [Year] via Microsoft Planetary Computer; preview and statistics provided by its public data API.` (PC path); `Contains modified Copernicus Sentinel data [Year] processed by Sentinel Hub.` (CDSE path).
+- No new dependencies added. No database is required for direct provider retrieval/display; persistence is only needed for stored history/repeat access.
+
+**Limitations / pending:**
+- CDSE credentialed live verification (no credentials configured) — pending.
+- Single scene only — no time series, baseline, or change detection (Phase 3+).
+- Preview is display-resampled; statistics carry the exact figures.
+- valid-pixel % is bounding-box based and conservative for irregular boundaries.
+- Two rectangles over Khanewal/Okara are development fixtures, not surveyed parcels; not a verified farm.
+- `localStorage` boundaries remain single-device (Phase 4).
+- Natural-color RGB imagery is not in the current panel — NDVI visualization only, not a diagnosis.
 
 ## Legacy execution sequence
 

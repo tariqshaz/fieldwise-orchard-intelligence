@@ -20,7 +20,16 @@ import {
 // Handler-only import: `.server.ts` modules are tree-shaken from the client
 // bundle (see example.functions.ts). All adapter references below live inside
 // `.handler` bodies so no provider code or env read reaches the browser.
-import { createCdseSentinelProvider, toSentinelError } from "../sentinel/cdse-adapter.server";
+import {
+  createCdseSentinelProvider,
+  hasCdseCredentials,
+  SentinelProviderError,
+  toSentinelError,
+} from "../sentinel/cdse-adapter.server";
+import {
+  createPlanetaryComputerSentinelProvider,
+  PlanetaryComputerProviderError,
+} from "../sentinel/planetary-computer-adapter.server";
 import { SENTINEL_ERROR_MESSAGES } from "../sentinel/errors";
 import { EXCLUDED_SCL, MASK_RULES, RETAINED_SCL, validPixelPct } from "../sentinel/ndvi";
 import type {
@@ -74,6 +83,7 @@ const retrieveInputSchema = z.object({
     tileCloudCoverPct: z.number().min(0).max(100).nullable().optional(),
     gsdMeters: z.number().min(1).max(10_000).nullable().optional(),
     platform: z.string().max(60).nullable().optional(),
+    provider: z.enum(["cdse", "planetary-computer"]).optional(),
   }),
 });
 
@@ -213,6 +223,49 @@ function buildCaveats(params: {
   return caveats;
 }
 
+type ProviderKind = "cdse" | "planetary-computer";
+
+function selectProvider(aoi: ResolvedAoi, requested?: ProviderKind) {
+  if (requested === "planetary-computer") {
+    if (aoi.descriptor.kind !== "sample") {
+      throw new SentinelProviderError(
+        "credentials_missing",
+        "CDSE credentials are required before sending an imported boundary for imagery processing.",
+      );
+    }
+    return {
+      kind: "planetary-computer" as const,
+      provider: createPlanetaryComputerSentinelProvider(),
+    };
+  }
+  if (requested === "cdse" && !hasCdseCredentials()) {
+    throw new SentinelProviderError(
+      "credentials_missing",
+      "The selected scene came from CDSE. Add server-side CDSE credentials and search again.",
+    );
+  }
+  if (hasCdseCredentials()) {
+    return { kind: "cdse" as const, provider: createCdseSentinelProvider() };
+  }
+  if (aoi.descriptor.kind === "sample") {
+    return {
+      kind: "planetary-computer" as const,
+      provider: createPlanetaryComputerSentinelProvider(),
+    };
+  }
+  throw new SentinelProviderError(
+    "credentials_missing",
+    "CDSE credentials are required for imported boundaries. Public demo imagery is limited to the Khanewal and Okara sample areas.",
+  );
+}
+
+function toProviderError(error: unknown) {
+  if (error instanceof PlanetaryComputerProviderError) {
+    return { code: error.code, message: error.message };
+  }
+  return toSentinelError(error);
+}
+
 // ---------------------------------------------------------------------------
 // Server functions
 // ---------------------------------------------------------------------------
@@ -232,8 +285,8 @@ export const searchSentinelScenes = createServerFn({ method: "POST" })
         throw new SentinelInputError(range.code, range.message);
       }
 
-      const provider = createCdseSentinelProvider();
-      const { scenes, truncated } = await provider.searchScenes({
+      const selected = selectProvider(aoi);
+      const { scenes, truncated } = await selected.provider.searchScenes({
         bbox: aoi.bbox,
         from: range.from,
         to: range.to,
@@ -243,6 +296,7 @@ export const searchSentinelScenes = createServerFn({ method: "POST" })
       return {
         ok: true,
         scenes,
+        provider: selected.kind,
         truncated,
         limit: SENTINEL_LIMITS.maxSceneResults,
         aoi: aoi.descriptor,
@@ -250,7 +304,7 @@ export const searchSentinelScenes = createServerFn({ method: "POST" })
         searchedAt: new Date().toISOString(),
       };
     } catch (error) {
-      return { ok: false, error: toSentinelError(error) };
+      return { ok: false, error: toProviderError(error) };
     }
   });
 
@@ -272,32 +326,56 @@ export const retrieveNdviObservation = createServerFn({ method: "POST" })
         tileCloudCoverPct: data.scene.tileCloudCoverPct ?? null,
         gsdMeters: data.scene.gsdMeters ?? null,
         platform: data.scene.platform ?? null,
+        provider: data.scene.provider,
       };
 
       const { width, height } = previewSizeForBbox(aoi.bbox);
-      const statsResolutionMeters = statsResolutionForBbox(aoi.bbox);
+      const requestedStatsResolutionMeters = statsResolutionForBbox(aoi.bbox);
       const metersPerPixel = metersPerPixelForBbox(aoi.bbox, width);
 
-      const provider = createCdseSentinelProvider();
-      const { previewPngBase64, stats } = await provider.retrieveNdvi({
+      const selected = selectProvider(aoi, data.scene.provider);
+      const {
+        previewPngBase64,
+        previewEncoding,
+        stats,
+        statsResolutionMeters: actualStatsResolutionMeters,
+      } = await selected.provider.retrieveNdvi({
         geometry: aoi.geometry,
         scene,
         width,
         height,
-        resMeters: statsResolutionMeters,
+        resMeters: requestedStatsResolutionMeters,
       });
+      const statsResolutionMeters = actualStatsResolutionMeters ?? requestedStatsResolutionMeters;
 
       const validPct = validPixelPct(stats.sampleCount, stats.noDataCount);
       const summary: NdviSummary = { ...stats, validPixelPct: validPct };
       const acquisitionYear = new Date(Date.parse(acquiredAt)).getUTCFullYear();
+      const caveats = buildCaveats({
+        statsResolutionMeters,
+        width,
+        height,
+        metersPerPixel,
+        validPct,
+        sampleCount: stats.sampleCount,
+        noDataCount: stats.noDataCount,
+        tileCloudCoverPct: scene.tileCloudCoverPct,
+      });
+      if (selected.kind === "planetary-computer") {
+        caveats.push(
+          "This no-account demo uses Microsoft Planetary Computer's public STAC and data APIs. Availability is best-effort and may be throttled; imported farm boundaries are not sent through this route.",
+        );
+      }
 
       return {
         ok: true,
         scene,
+        provider: selected.kind,
         aoi: aoi.descriptor,
         retrievedAt: new Date().toISOString(),
         preview: {
           dataUrl: `data:image/png;base64,${previewPngBase64}`,
+          ...(previewEncoding ? { encoding: previewEncoding } : {}),
           width,
           height,
           bbox: aoi.bbox,
@@ -306,21 +384,13 @@ export const retrieveNdviObservation = createServerFn({ method: "POST" })
         summary,
         masking: buildMasking(),
         statsResolutionMeters,
-        caveats: buildCaveats({
-          statsResolutionMeters,
-          width,
-          height,
-          metersPerPixel,
-          validPct,
-          sampleCount: stats.sampleCount,
-          noDataCount: stats.noDataCount,
-          tileCloudCoverPct: scene.tileCloudCoverPct,
-        }),
+        caveats,
         attribution:
-          `Contains modified Copernicus Sentinel data [${acquisitionYear}] ` +
-          "processed by Sentinel Hub",
+          selected.kind === "cdse"
+            ? `Contains modified Copernicus Sentinel data [${acquisitionYear}] processed by Sentinel Hub.`
+            : `Contains Copernicus Sentinel data [${acquisitionYear}] via Microsoft Planetary Computer; preview and statistics provided by its public data API.`,
       };
     } catch (error) {
-      return { ok: false, error: toSentinelError(error) };
+      return { ok: false, error: toProviderError(error) };
     }
   });

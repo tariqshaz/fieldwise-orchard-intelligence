@@ -21,6 +21,8 @@ The user authorized moving development to the existing Contabo VPS after Phase 2
 
 **Container operations (run on VPS):** `docker logs -f fieldwise-dev`; `docker restart fieldwise-dev`; `docker stop fieldwise-dev`; `docker start fieldwise-dev`. The container restarts automatically after a VPS reboot. To update after pushing local changes: check the VPS working tree, run `git -C /opt/fieldwise-orchard-intelligence pull --ff-only`, then `docker restart fieldwise-dev`. The container runs as UID/GID 995:986; the runtime image is isolated from host packages.
 
+**GitHub push from VPS:** the clone currently has read-only HTTPS access. A repo-scoped Ed25519 deploy key is generated at `/opt/fieldwise/.ssh/github_deploy` (private key mode `0600`); add its `.pub` value as a write-enabled deploy key in this repository's GitHub Settings before attempting pushes from the VPS. Then configure the repo's SSH remote to use that key and verify authentication. Until that is done, make edits on the VPS but push commits from the authenticated PC copy, then fast-forward-pull them on the VPS.
+
 **Verification performed:** image availability checked; `bun install --frozen-lockfile` completed (473 packages); Vite reported ready on 8081; VPS loopback HTTP and PC SSH-tunnel requests both returned HTTP 200 with the rendered app (about 60 KB). Confirmed listener binding is `127.0.0.1:8081`; existing Beszel/Uptime Kuma services remained running on their original ports. The live satellite adapter was not re-exercised after moving; Phase 2's live PC API verification remains the evidence for that feature.
 
 ### Next build phase after VPS setup

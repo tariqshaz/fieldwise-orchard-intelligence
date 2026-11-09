@@ -157,7 +157,7 @@ Treat pollination as a crop-specific module, not a generic drone feature. For da
 
 Date-palm drone pollination has field-study evidence, but results can vary by cultivar and operating method, and commercial parameters still need local validation. Begin with a human-reviewed trial plan and manual outcome recording. A later drone mission requires a specialized pollen payload, flower detection validated on local cultivars, safe close-range navigation, and measured fruit-set/quality outcomes. None of these models, payloads, mission plans, or records are implemented in the current code.
 
-## Expanded roadmap and gates
+## Historical expanded roadmap and gates (superseded by the current handoff above)
 
 The existing Phases 1–5 remain the near-term data and workflow foundation. Extend the roadmap as follows:
 
@@ -401,14 +401,15 @@ Research basis: `docs/research/fieldwise-orchard-intelligence-research-report.md
 
 ### What to start now
 
-1. Finish **Phase 1.1** because geometry integrity is a dependency for all spatial analysis.
-2. Start **Phase 2** immediately after review: one real Sentinel-2 scene/NDVI vertical slice. Use a verified boundary if available; otherwise use an explicit public/sample AOI and do not call it a farm result.
-3. In parallel without blocking coding, identify the likely pilot province/crop and ask potential partners for a boundary, crop/variety list, and weather/controller information. Keep this as an assumption-gathering workstream, not fabricated data.
-4. Then deliver Phases 3–7 one at a time, with a review gate after each. Defer drone, control, and pollination execution to Phase 8.
+1. Phase 1.1 GeoJSON validation and Phase 2 Sentinel-2 demo slice are complete; do not restart them unless a specific defect is found.
+2. The app is running in the isolated VPS workspace and is openable with VS Code Remote SSH using `fieldwise-vps`.
+3. Start the current **Phase 3 — Farm environmental history and live forecast** below: compare free/open providers for Khanewal and Okara first, then build sourced historical weather, one current forecast, and available flood/regional crop context.
+4. Keep the pilot selection unresolved. Khanewal and Okara are sample AOIs only, not surveyed farms or a confirmed pilot. Continue assumption gathering separately from implementation.
+5. Follow the current Phase 4–8 roadmap below one phase at a time. Keep treatment and controller actions simulated or advisory until the evidence, qualified partners, equipment, and safety gates exist.
 
 The first useful milestone is not “AI diagnoses a disease.” It is: **for a labelled area and date, FieldWise retrieves real satellite imagery, shows its quality and history, adds dated weather context, flags a transparent change, and creates an investigation record that can later accept field confirmation and outcome data.**
 
-## Current situation
+## Historical prototype snapshot (superseded by the current handoff above)
 
 - The local Vite app runs in the user's environment at http://localhost:8080/ after installing dependency versions aligned with bun.lock.
 - Dashboard metrics, estate, drone, sensor, sector map, and recommendations read from shared typed seed data.
@@ -599,4 +600,4 @@ The Khanewal/Okara valid-pixel discrepancy (31% vs 91%) reflects different land 
 
 ## Legacy execution sequence
 
-The earlier linear sequence (boundaries → satellite → persistence → simulated actions → ROI) is retained above as historical implementation context and is superseded by the **Reconciled build roadmap**. Use that roadmap for new OpenCode/Cline tasks. The repo's current changes are local and uncommitted; preserve them and review the full diff before committing.
+The earlier linear sequence (boundaries → satellite → persistence → simulated actions → ROI) is retained above as historical implementation context and is superseded by the **Reconciled build roadmap** and current handoff. The statement in older notes that changes were local and uncommitted describes the state at the time those notes were written; it is not the current Git status. See `docs/AGENT_HANDOVER.md` for the current repository, VPS, tooling, and next-phase handoff.

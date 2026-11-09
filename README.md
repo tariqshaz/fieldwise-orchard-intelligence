@@ -1,10 +1,10 @@
 # FieldWise Orchard Intelligence
 
-Aurelian is a precision agriculture intelligence platform designed to give orchard owners, agronomists, and investors a single command center for crop health, field operations, autonomous intervention, and measurable return on investment.
+> **Current status (2026-11-09):** This is an early-stage prototype. The dashboard is largely visual/synthetic. The functional real-data slice is Sentinel-2 scene search and NDVI preview/statistics for two clearly labelled public sample areas: Khanewal and Okara. Phase 2 passed its demo acceptance and is pushed to `main` as `1ca2545`. These sample areas are not surveyed farms.
 
-The product brings together real-time field telemetry, multispectral crop analysis, drone operations, soil sensor data, and AI-powered decision support into one unified operations console.
+The current satellite panel retrieves historical Sentinel-2 observations through Microsoft Planetary Computer for the sample areas. CDSE credentials are not configured, so its credentialed live path is not verified. The panel displays an NDVI visualization, not natural-color imagery or a diagnosis.
 
-Instead of forcing teams to work across disconnected spreadsheets, hardware dashboards, and generic farm apps, Aurelian turns field data into actionable intelligence.
+Most dashboard metrics, sensors, drone activity, alerts, and recommendations remain illustrative or simulated. There is no live weather, crop diagnosis, drone dispatch, irrigation control, pollination workflow, or durable farm-data backend yet. Descriptions below explain the intended product vision unless explicitly identified as built. The active implementation plan is in [SITREP.md](SITREP.md).
 
 ## Why this project exists
 
@@ -29,7 +29,7 @@ The result is a more intelligent and operationally useful platform for managing 
 
 ## The core idea
 
-Aurelian is designed to act like a mission-control dashboard for agriculture.
+FieldWise is intended to become an evidence-led operations workspace for agriculture.
 
 At the top, leadership sees business value:
 - pesticide savings
@@ -100,7 +100,7 @@ Each recommendation is shown as a decision event with context such as:
 - operator action options
 
 ### 4. Human-in-the-loop control
-Aurelian is not designed to act blindly.
+FieldWise is intended to keep people accountable for high-impact decisions.
 
 The operator remains in control through approval workflows such as:
 
@@ -112,7 +112,7 @@ The operator remains in control through approval workflows such as:
 This keeps the platform practical for real-world agricultural operations while still using automation where it is most useful.
 
 ### 5. ROI and executive visibility
-A major difference from traditional farm software is that Aurelian is designed for decision-makers, not just field technicians.
+The product vision serves decision-makers as well as field teams.
 
 It provides:
 - resource savings metrics
@@ -138,7 +138,7 @@ They often fail to provide a true operational intelligence layer.
 FieldWise is different because it combines the following in one system:
 
 ### Unified operational view
-Instead of disconnected tools for field monitoring, drone activities, chemical usage, and reporting, Aurelian brings everything into one control center.
+The product vision is to connect field monitoring, approved operations, and reporting in one workspace.
 
 ### Real-time geospatial intelligence
 The platform is built around zones, sectors, and live field conditions rather than just static field lists and generic records.
@@ -147,7 +147,7 @@ The platform is built around zones, sectors, and live field conditions rather th
 The platform is designed not merely to display data, but to interpret it and recommend action.
 
 ### Investor-grade performance reporting
-Unlike many farm apps that are built around tasks and logs, Aurelian is designed around measurable economic outcomes.
+The longer-term product vision includes measurable outcomes, supported by recorded evidence.
 
 ### Human approval for autonomous actions
 This creates a balanced workflow: automation helps speed decisions, but people remain ultimately accountable for high-impact actions.
@@ -157,26 +157,19 @@ The system is built with a premium command-center aesthetic and executive decisi
 
 ## Current state of the project
 
-The project has already moved beyond a pure concept and is now demonstrating a functioning, polished dashboard experience.
+The project is a visual prototype with a few working interactions and one verified live-data feature area. The dashboard should not be presented as a live farm-operations system.
 
 ### Built so far
-- executive command bar with ROI metrics
-- dark navy and gold premium design system
-- glassmorphism-based dashboard panels
-- geospatial field interface
-- sector health visualization using color-coded field zones
-- NDVI and moisture-layer toggles
-- animated drone route overlays
-- IoT mesh health panel
-- UAV telemetry cards
-- AI decision feed with operational recommendations
-- backend infrastructure enabled through Lovable Cloud
+- GeoJSON boundary validation and browser-local import for the prototype.
+- Server-side Sentinel-2 search and NDVI observation flow for the fixed Khanewal/Okara sample areas using the public Planetary Computer fallback.
+- Scene metadata, quality masking, NDVI summary and histogram, visible georeferenced preview, attribution, and caveats.
+- A dashboard shell whose non-satellite metrics and overlays are illustrative/synthetic.
 
-This is already a strong frontend prototype for a high-value agricultural intelligence product.
+See `SITREP.md` for verification evidence, current constraints, the Phase 3 plan, and the authorized VPS development move.
 
 ## Product vision
 
-Aurelian is intended to become the operating layer for high-value orchard and field management, particularly in contexts where precision matters and operational efficiency drives profitability.
+FieldWise is intended to become an operating workspace for high-value orchard and field management, particularly where evidence, safety, and operational efficiency matter.
 
 The platform is positioned for:
 - orchard estates
@@ -212,34 +205,7 @@ The platform is designed to support entities such as:
 
 ## Roadmap
 
-### Phase 1: Persistent data layer
-- add databases for estates, sectors, telemetry, AI alerts, and actions
-- replace mocked UI state with real records
-
-### Phase 2: Live operational workflows
-- connect action buttons to real logic
-- trigger dispatch and approval state transitions
-- update live telemetry in the UI
-
-### Phase 3: Historical analytics
-- multi-day crop trend views
-- compare sector performance over time
-- analyze water and spray efficiency trends
-
-### Phase 4: Multi-estate management
-- switch between orchards or estates
-- monitor performance across multiple sites
-
-### Phase 5: Role-based access
-- investor view
-- agronomist view
-- field operations view
-
-### Phase 6: Enterprise readiness
-- stronger data validation
-- improved reliability and monitoring
-- security and audit trails
-- production-grade deployment architecture
+The active phase plan is maintained in `SITREP.md` and supersedes this README's original concept roadmap. Phase 1.1 (boundary validation) and Phase 2 (Sentinel-2 demo slice) are complete. Phase 3 is historical weather/flood context plus a current forecast, using free/open sources first. Later work adds persistence and access control, a local crop-risk/investigation workflow, explainable decisions, outcome measurement, then field integrations and crop-specific trials. Autonomous spraying, fumigation dispatch, closed-loop irrigation, and commercial drone pollination are not current capabilities.
 
 ## Tech stack
 

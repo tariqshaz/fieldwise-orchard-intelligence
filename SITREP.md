@@ -1,6 +1,27 @@
 # FieldWise Orchard Intelligence — SITREP
 
-## Date: 2026-11-08
+## Date: 2026-11-09
+
+## Current handoff — Phase 2 accepted; move development to VPS (2026-11-09)
+
+### Authoritative project state
+
+- Phase 2 Sentinel-2 demo acceptance is met for the no-account demo: both Khanewal and Okara sample AOIs were verified against the live Microsoft Planetary Computer API for catalog search, selected item, visible preview PNG, heavy statistics, and light statistics. The complete local suite/build/format/lint checks passed in the user's session.
+- CDSE Sentinel Hub is implemented but its credentialed live path remains pending because no OAuth credentials are configured. The public fallback only accepts the two fixed, labelled sample AOIs; these are not surveyed farms.
+- Latest Phase 2 commit: `1ca2545` (`Complete Phase 2 Sentinel-2 demo vertical slice`), pushed to `origin/main`. At the start of this session, local `main` was clean and aligned with `origin/main`.
+- Current product truth: the selected-scene panel shows a satellite-derived NDVI visualization and metadata. Other dashboard measurements and operations remain illustrative/synthetic; there is no natural-color RGB layer, time series, farm diagnosis, weather feed, drone dispatch, irrigation control, or pollination workflow.
+
+### VPS move — authorized and in progress
+
+The user authorized moving development to the existing Contabo VPS after Phase 2, while keeping the PC copy and GitHub synchronized. A read-only inventory confirmed Ubuntu 24.04.5, 4 vCPU, about 7.8 GiB RAM, and 66 GiB free on the 96 GiB root volume. Beszel and Uptime Kuma are already running, and other project services/processes are present. No VPS files, packages, services, firewall, or ports have been changed yet.
+
+**Isolation rules for the move:** use a dedicated FieldWise directory (planned `/opt/fieldwise-orchard-intelligence`) and a non-root development account; clone only from the synchronized GitHub `main`; do not overwrite or share another project's files, environment, database, containers, or process. Keep the FieldWise server bound to loopback and access it through SSH forwarding while no domain/reverse-proxy and access policy has been agreed. Do not change existing Beszel/Uptime Kuma, PostgreSQL, OpenCode/other app services, firewall, nginx, or global runtimes. Do not copy `.env` or secrets from the PC; no CDSE secrets are currently configured. Inventory ports and disk before installing a per-project Node 22 runtime/dependencies. Record the final directory, runtime, port, start/stop commands, Git sync procedure, and any change on the VPS here after setup.
+
+**Sync/rollout order:** (1) Update this plan and the README's implementation-status notice locally; run `git diff --check`, review the full diff, commit and push documentation to `origin/main`. (2) Verify the VPS clone is on the exact pushed commit, then install/run FieldWise in its isolated workspace without exposing a public port. (3) Verify build, localhost health, and Sentinel sample-AOI path from the VPS; keep the PC working copy on the same Git branch and fast-forward only after checking it is clean. (4) Start Phase 3 only after VPS development and Git synchronization are documented and usable.
+
+### Next build phase after VPS setup
+
+Proceed to Phase 3: free/open historical weather and flood context plus a current forecast, keeping observations, reanalysis, forecasts, and official flood records as separate sourced products. First compare provider coverage, terms, resolution, update cadence, and limits for Khanewal and Okara. No paid imagery/provider is in scope for the demo. Keep regional values distinct from farm measurements and do not infer current flooding from historical flood layers.
 
 ## Session handoff — 2026-11-08
 
@@ -74,11 +95,11 @@ The broader vision remains specialty-crop aware. The platform may eventually con
 - **Navigation and product spaces:** The app is currently one long dashboard route, with no navigation for investigations, field visits, missions, irrigation, evidence, or settings. Introduce a small demo navigation for Overview, Map & Observations, Investigations/Scouting, Simulation, and Data/Settings; mark unbuilt spaces as planned rather than presenting dead controls. Build detailed irrigation infrastructure (water source, pump, filters, mains, zones, valves, emitters/controllers) only after inventory information exists; there is no irrigation plumbing or control code now.
 - **Mobile/operator usability:** The map uses a fixed tall panel and controls can crowd at narrow widths. Review responsive layouts, keyboard access, clear loading/empty/error states, and field-use touch targets as a follow-up visual QA pass.
 
-**Updated order of work:** (1) Diagnose and fix the Planetary Computer selected-scene failure; get preview and statistics to succeed live for both sample AOIs and record the exact stages verified. (2) Rebrand and make the demo truthful: consistent FieldWise name, sample-area selector/context, simulation banner, explicit source/time/status on every metric, and remove unsupported live/autonomous/diagnostic claims. (3) Connect verified satellite imagery to the map and build date-based observation history only from real available observations. (4) Resume Phase 3 historical weather, forecast, flood and regional crop context using free/open or explicitly free demo data only. (5) Build the evidence-led investigation and in-person scouting workflow, then persist records and add safe operation simulators. Real paid imagery, paid tasking, external actions, drone dispatch, and irrigation writes remain out of scope until the demo is complete and the appropriate evidence/safety gates are met.
+**Historical updated order (superseded by the 2026-11-09 current handoff above):** (1) Diagnose and fix the Planetary Computer selected-scene failure; get preview and statistics to succeed live for both sample AOIs. (2) Rebrand and make the demo truthful. (3) Connect imagery to the map and add observation history. (4) Resume Phase 3 weather/flood context. (5) Build evidence-led investigation and scouting. The satellite retrieval work is now complete for the demo; follow the current handoff above for the VPS move and next steps.
 
-### Next session — close the live imagery retrieval gap, then make the demo truthful
+### Previous next-session note — historical; superseded by the 2026-11-09 current handoff
 
-Phase 2's CDSE implementation is pushed, and the public Planetary Computer fallback returns scene search results for both sample areas. The latest browser walkthrough did **not** retrieve a selected scene's preview/statistics: both AOIs returned the safe `provider_error` state. Resolve and verify that live retrieval before treating the no-account imagery demo as complete. Then apply the dashboard audit updates in the order above and resume Phase 3, using only free/open or explicitly free demo data until the demo is complete.
+At that earlier point, selected-scene retrieval was still failing; the later final report and Phase 2 acceptance record below supersede that status. The next action is the authorized VPS setup recorded at the top of this SITREP.
 
 _(Update, later 2026-11-08: this Phase 2 slice is delivered — see the “Phase 2 — Secure satellite observation vertical slice” work package below for the provider decision, setup, bounds, security handling, files, limitations, and the exact checks performed.)_
 
@@ -267,7 +288,7 @@ Research basis: `docs/research/fieldwise-orchard-intelligence-research-report.md
 
 **OpenCode/Cline task:** “Implement Phase 2 from the active roadmap in SITREP.md: one secure Sentinel-2 Level-2A observation flow. Inspect the app routes, existing boundary model, provider documentation, environment setup, and backend/auth conventions first. Query by selected date range and imported polygon; if no real farm boundary exists, provide only a visibly labelled public/sample AOI for development. Cloud-mask, calculate B08/B04 NDVI, and show acquisition date, cloud quality, source, resolution, and error/no-scene states. Keep credentials and privileged calls server-side; do not put secrets in VITE/client variables or commit them. Do not claim disease, insect, water, or treatment diagnosis. Add only the smallest necessary dependencies and update SITREP.md with setup, limitations, security notes, and checks actually performed.”
 
-**Status (2026-11-08): Core Phase 2 demo vertical slice is implemented; sample-AOI live preview and statistics now render.** The CDSE adapter was delivered and pushed as `4678c81`, but its credentialed live path remains unverified because credentials are unavailable. The no-account Planetary Computer fallback is live for the fixed, labelled Khanewal and Okara sample AOIs. After resolving provider request, response-shape, and image-rendering issues, the user confirmed a fresh Khanewal scene displays the NDVI preview and associated statistics. Phase 2 still needs final post-fix regression/build checks, a fresh Okara run, and live verification of CDSE with user credentials before treating the whole provider path as fully validated.
+**Status (2026-11-09): Phase 2 demo acceptance met.** The no-account Planetary Computer fallback was verified live for both labelled sample AOIs; all local checks passed and commit `1ca2545` was pushed to `main`. CDSE credentialed live verification remains pending because credentials are unavailable; this does not block the sample-AOI demo acceptance. See the final QA audit near the end of this SITREP for exact results and limitations.
 
 **Provider decision:** CDSE Sentinel Hub remains the preferred provider once the user has OAuth client credentials. Its Catalog, Process, and Statistics APIs use one server-side OAuth client. The adapter remains isolated behind `createCdseSentinelProvider()`.
 

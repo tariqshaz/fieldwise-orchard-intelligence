@@ -1,10 +1,10 @@
 # FieldWise Orchard Intelligence
 
-> **Current status (2026-11-09):** This is an early-stage prototype. The dashboard is largely visual/synthetic. The functional real-data slice is Sentinel-2 scene search and NDVI preview/statistics for two clearly labelled public sample areas: Khanewal and Okara. Phase 2 passed its demo acceptance and is pushed to `main` as `1ca2545`. These sample areas are not surveyed farms.
+> **Current status (2026-11-09):** This is an early-stage prototype. The dashboard is largely visual/synthetic. The functional real-data slice is Sentinel-2 scene search and NDVI preview/statistics for two clearly labelled public sample areas: Khanewal and Okara. Phase 2 passed its demo acceptance in `1ca2545`; VPS development is now running privately as recorded in `SITREP.md`. These sample areas are not surveyed farms.
 
 The current satellite panel retrieves historical Sentinel-2 observations through Microsoft Planetary Computer for the sample areas. CDSE credentials are not configured, so its credentialed live path is not verified. The panel displays an NDVI visualization, not natural-color imagery or a diagnosis.
 
-Most dashboard metrics, sensors, drone activity, alerts, and recommendations remain illustrative or simulated. There is no live weather, crop diagnosis, drone dispatch, irrigation control, pollination workflow, or durable farm-data backend yet. Descriptions below explain the intended product vision unless explicitly identified as built. The active implementation plan is in [SITREP.md](SITREP.md).
+Most dashboard metrics, sensors, drone activity, alerts, and recommendations remain illustrative or simulated. There is no live weather, crop diagnosis, drone dispatch, irrigation control, pollination workflow, or durable farm-data backend yet. Descriptions below explain the intended product vision unless explicitly identified as built. The active implementation plan and private VPS access commands are in [SITREP.md](SITREP.md).
 
 ## Why this project exists
 

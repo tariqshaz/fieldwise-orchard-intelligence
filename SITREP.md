@@ -2,26 +2,30 @@
 
 ## Date: 2026-11-09
 
-## Current handoff — Phase 2 accepted; move development to VPS (2026-11-09)
+## Current handoff — Phase 2 accepted; VPS development started (2026-11-09)
 
 ### Authoritative project state
 
 - Phase 2 Sentinel-2 demo acceptance is met for the no-account demo: both Khanewal and Okara sample AOIs were verified against the live Microsoft Planetary Computer API for catalog search, selected item, visible preview PNG, heavy statistics, and light statistics. The complete local suite/build/format/lint checks passed in the user's session.
 - CDSE Sentinel Hub is implemented but its credentialed live path remains pending because no OAuth credentials are configured. The public fallback only accepts the two fixed, labelled sample AOIs; these are not surveyed farms.
-- Latest Phase 2 commit: `1ca2545` (`Complete Phase 2 Sentinel-2 demo vertical slice`), pushed to `origin/main`. At the start of this session, local `main` was clean and aligned with `origin/main`.
+- Latest Phase 2 commit: `1ca2545` (`Complete Phase 2 Sentinel-2 demo vertical slice`), pushed to `origin/main`. VPS handoff docs were committed and pushed as `e75de3b` before cloning; local `main` was clean and aligned at that point.
 - Current product truth: the selected-scene panel shows a satellite-derived NDVI visualization and metadata. Other dashboard measurements and operations remain illustrative/synthetic; there is no natural-color RGB layer, time series, farm diagnosis, weather feed, drone dispatch, irrigation control, or pollination workflow.
 
-### VPS move — authorized and in progress
+### VPS move — initial setup complete
 
-The user authorized moving development to the existing Contabo VPS after Phase 2, while keeping the PC copy and GitHub synchronized. A read-only inventory confirmed Ubuntu 24.04.5, 4 vCPU, about 7.8 GiB RAM, and 66 GiB free on the 96 GiB root volume. Beszel and Uptime Kuma are already running, and other project services/processes are present. No VPS files, packages, services, firewall, or ports have been changed yet.
+The user authorized moving development to the existing Contabo VPS after Phase 2, while keeping the PC copy and GitHub synchronized. The VPS runs Ubuntu 24.04.5 with 4 vCPU, 7.8 GiB RAM, and 66 GiB free on the 96 GiB root volume. Beszel and Uptime Kuma and other project services were already running. The project was cloned from GitHub `main` into `/opt/fieldwise-orchard-intelligence` at `e75de3b474b9952ca368bb2419be9fc10aa881a9`; the dedicated non-login account is `fieldwise` (UID 995/GID 986). No host Node/Bun installation was made. Dependencies were installed from the committed `bun.lock` using `oven/bun:1.3.9` (image digest `sha256:856da45d07aeb62eb38ea3e7f9e1794c0143a4ff63efb00e6c4491b627e2a521`) inside Docker.
 
-**Isolation rules for the move:** use a dedicated FieldWise directory (planned `/opt/fieldwise-orchard-intelligence`) and a non-root development account; clone only from the synchronized GitHub `main`; do not overwrite or share another project's files, environment, database, containers, or process. Keep the FieldWise server bound to loopback and access it through SSH forwarding while no domain/reverse-proxy and access policy has been agreed. Do not change existing Beszel/Uptime Kuma, PostgreSQL, OpenCode/other app services, firewall, nginx, or global runtimes. Do not copy `.env` or secrets from the PC; no CDSE secrets are currently configured. Inventory ports and disk before installing a per-project Node 22 runtime/dependencies. Record the final directory, runtime, port, start/stop commands, Git sync procedure, and any change on the VPS here after setup.
+**Isolation rules:** keep FieldWise in its dedicated directory/account/container. Do not share or overwrite another project's files, environment, database, container, or process. The app container `fieldwise-dev` maps only `127.0.0.1:8081` on the host to port 8081 in the container. It is accessed through an SSH tunnel; no public FieldWise port, firewall, nginx, global runtime, Beszel/Uptime Kuma, PostgreSQL, or other project service was changed. The VPS runtime configuration is stored outside the Git checkout at `/opt/fieldwise/.env` (mode `0600`, owner `fieldwise`) and contains only Supabase publishable configuration; no CDSE OAuth secrets are configured. `.env` and `.env.*` are now ignored by Git, with `.env.example` retained. The existing public Git history still contains the prior tracked file, but it held only Supabase publishable values, which are intended for client use; do not add secrets to it.
 
-**Sync/rollout order:** (1) Update this plan and the README's implementation-status notice locally; run `git diff --check`, review the full diff, commit and push documentation to `origin/main`. (2) Verify the VPS clone is on the exact pushed commit, then install/run FieldWise in its isolated workspace without exposing a public port. (3) Verify build, localhost health, and Sentinel sample-AOI path from the VPS; keep the PC working copy on the same Git branch and fast-forward only after checking it is clean. (4) Start Phase 3 only after VPS development and Git synchronization are documented and usable.
+**Access from the PC:** `ssh -L 8081:127.0.0.1:8081 root@169.58.232.30`; then open `http://localhost:8081/`. The tunnel was verified from the PC and returned HTTP 200. Stop the foreground SSH tunnel with Ctrl+C. The VPS app container is named `fieldwise-dev`.
+
+**Container operations (run on VPS):** `docker logs -f fieldwise-dev`; `docker restart fieldwise-dev`; `docker stop fieldwise-dev`; `docker start fieldwise-dev`. The container restarts automatically after a VPS reboot. To update after pushing local changes: check the VPS working tree, run `git -C /opt/fieldwise-orchard-intelligence pull --ff-only`, then `docker restart fieldwise-dev`. The container runs as UID/GID 995:986; the runtime image is isolated from host packages.
+
+**Verification performed:** image availability checked; `bun install --frozen-lockfile` completed (473 packages); Vite reported ready on 8081; VPS loopback HTTP and PC SSH-tunnel requests both returned HTTP 200 with the rendered app (about 60 KB). Confirmed listener binding is `127.0.0.1:8081`; existing Beszel/Uptime Kuma services remained running on their original ports. The live satellite adapter was not re-exercised after moving; Phase 2's live PC API verification remains the evidence for that feature.
 
 ### Next build phase after VPS setup
 
-Proceed to Phase 3: free/open historical weather and flood context plus a current forecast, keeping observations, reanalysis, forecasts, and official flood records as separate sourced products. First compare provider coverage, terms, resolution, update cadence, and limits for Khanewal and Okara. No paid imagery/provider is in scope for the demo. Keep regional values distinct from farm measurements and do not infer current flooding from historical flood layers.
+Proceed to Phase 3 on the VPS: free/open historical weather and flood context plus a current forecast, keeping observations, reanalysis, forecasts, and official flood records as separate sourced products. First compare provider coverage, terms, resolution, update cadence, and limits for Khanewal and Okara. No paid imagery/provider is in scope for the demo. Keep regional values distinct from farm measurements and do not infer current flooding from historical flood layers.
 
 ## Session handoff — 2026-11-08
 

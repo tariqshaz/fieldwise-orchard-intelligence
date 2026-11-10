@@ -72,7 +72,7 @@ Keep distinct typed products and UI labels for observed weather, reanalysis esti
 
 ### Following phases
 
-4. **Persist the evidence ledger and secure access:** farm-scoped authenticated records and database policies; keep large raster files out of normal database rows; audit provenance/approvals.
+4. **Persist the evidence ledger and secure access:** persist observations and linked evidence with provenance, timestamps, farm-scoped authorization, least privilege, and auditable changes; keep rasters out of database rows and document backup/deletion behavior.
 5. **Local crop-risk library and investigation workflow:** versioned, cited local crop/season/pest/disease/weed/abiotic knowledge; anomaly → scout case → competing hypotheses → human/lab confirmation or unresolved status.
 6. **Explainable decision support and operation plans:** transparent evidence, uncertainties, missing inputs, rule/model version, options, approval, and simulated-only job flow; include no-action/non-chemical options.
 7. **Outcome measurement and reviewed learning:** capture follow-up observations, resource use, cost, yield/quality where available; version/review/rollback improvements and evaluate against held-out cases.
@@ -128,20 +128,20 @@ No autonomous spraying, fumigation, closed-loop irrigation, commercial pollinati
 - Docker lifecycle/log commands require the existing root SSH account, for example `docker logs -f fieldwise-dev`, `docker restart fieldwise-dev`, `docker stop fieldwise-dev`, and `docker start fieldwise-dev`. Do not add `fieldwise` to the Docker group just for convenience; that group grants root-equivalent control.
 - Existing Beszel (`8090`), Uptime Kuma (`3001`), PostgreSQL, other VS Code/OpenCode services, firewall and nginx are unrelated. Do not edit or restart them.
 
-### GitHub push access from VPS — still pending
+### GitHub push access and current synchronization
 
-The VPS clone currently uses public HTTPS for fetch/pull; it cannot push. A repository-scoped Ed25519 keypair is already generated under `/opt/fieldwise/.ssh/` (`github_deploy` private; `github_deploy.pub` public). The public key must be added to this repository under **Settings → Deploy keys** with **Allow write access** before configuring the VPS `origin` SSH URL. Never print, copy, commit, or share the private key. Until write authentication is verified, a commit made in the VPS checkout cannot be pushed from there; keep synchronization deliberate and do not assume PC edits appear on the VPS.
+The Phase 3 acceptance commit `cd74d2c` was pushed to GitHub `main` on 2026-11-10; the working tree was clean and synchronized at closeout. This checkout could not push over HTTPS because no HTTPS credential was available, and its existing VPS SSH deploy key was rejected by GitHub. The push was completed through the user's authenticated GitHub path. Do not assume the VPS deploy key is write-enabled; re-check authentication before the next push. Never print, copy, commit, or share a private key. Keep the PC and VPS clones synchronized deliberately.
 
 ## 7. Working rules for the next agent
 
 1. Start in the `fieldwise-vps` VS Code workspace, check `git status --short --branch` and the latest commit, then read this file and the current-handoff section at the top of `SITREP.md`.
-2. Work on **Phase 3 only**, beginning with provider/source research and a concise source decision before implementation. Preserve existing visual language and avoid unrelated dashboard redesign.
+2. Phase 3 is accepted. Prepare for **Phase 4 — Persist the evidence ledger and secure access** as defined in the “Reconciled build roadmap” in `SITREP.md`; inspect the existing schema, authentication, authorization, data flows, storage, and audit support before proposing code changes. Preserve the visual language and avoid unrelated redesign.
 3. Use primary/official data-provider docs and licenses for technical claims. Do not choose providers based only on marketing pages. Keep paid imagery out of scope for the demo.
 4. Maintain explicit provenance, timestamps, spatial/temporal resolution, units, uncertainty and missing/stale-data behavior. Never fabricate farm evidence or call the two sample rectangles a farm.
 5. Keep provider calls/credentials on the server. Treat third-party image/location transfer and retention as privacy decisions. No external actions from a recommendation or simulator.
 6. Make a scoped change, record files, setup, verification performed/not performed, limits, and the next decision in `SITREP.md`. Do not report checks that were not run.
 7. Before any commit/push, check whether the VPS deploy key has actually been enabled and authenticated. If not, coordinate a safe single-author sync path rather than creating divergent local and VPS commits.
 
-### Phase 3 task brief
+### Phase 4 starting brief
 
-> Implement the active Phase 3 in `SITREP.md`: farm environmental history and a current forecast. First research and compare free/open candidate weather, forecast, flood-history, and regional crop-context sources for the Khanewal and Okara sample AOIs. Record source, coverage, resolution, license/terms, update cadence, variables, limits, and API/security requirements, then select the smallest useful provider set. Keep measured observations, reanalysis, forecasts, flood records, and regional statistics distinct and sourced. Do not invent local farm observations, present historical floods as current, add paid imagery, or imply diagnosis. Keep credentials server-side and make stale/unavailable data explicit. Avoid adding storage/queues/geospatial infrastructure without a demonstrated need. Update `SITREP.md` with the decision, implementation, changed files, and checks actually performed.
+> Start Phase 4 from the authoritative Phase 4 section in `SITREP.md`. First inspect and report the existing schema, authentication, authorization/RLS, observation/evidence data flow, storage, audit support, and VPS/Supabase configuration; distinguish implemented behavior from draft files. Identify prerequisites and propose a single-pilot, farm-scoped persistence design before implementation. Persist only the evidence and records required by the roadmap, with provenance, timestamps, least privilege, privacy, backup/deletion behavior, and auditable changes. Keep large rasters in object storage or provider references, never normal database rows. Keep service-role credentials server-side. Update the SITREP with scope, decisions, migrations/configuration, verification, limitations, and next decisions. Do not start Phase 5 recommendations or the deferred weather date selector/multi-year rainfall unless the owner reprioritizes them.

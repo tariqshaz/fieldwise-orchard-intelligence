@@ -9,11 +9,13 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "test:geospatial": "node --experimental-strip-types --test src/lib/geospatial.test.ts",
-    "test:sentinel": "node --experimental-strip-types --test src/lib/sentinel/sentinel.test.ts",
+    "test:geospatial": "bun test src/lib/geospatial.test.ts",
+    "test:sentinel": "bun test src/lib/sentinel/sentinel.test.ts",
+    "test:weather": "bun test src/lib/weather/weather.test.ts",
     "format": "prettier --write ."
   },
   "dependencies": {
+    "@fieldglass/wasm": "0.6.1",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",

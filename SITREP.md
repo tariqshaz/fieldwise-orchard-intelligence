@@ -1,15 +1,163 @@
 # FieldWise Orchard Intelligence — SITREP
 
-## Date: 2026-11-09
+## Date: 2026-11-10
 
-## Current handoff — Phase 2 accepted; VPS development started (2026-11-09)
+## Current handoff — Phase 3 environmental history and forecast accepted (updated 2026-11-10)
+
+### Phase 3 acceptance decision — ACCEPTED within the recorded scope
+
+ERA5-Land retrieval, forecast context, the regional reference products, and the dashboard states required for this slice have been independently checked. The project is ready to move to Phase 4. The accepted product remains a sample-AOI context panel: grid-cell reanalysis and forecast estimates, plus dated district references. It does not claim farm measurements or a farm-level flood/crop record.
+
+- **ECMWF IFS:** existing live forecast path remains independently verified against ecCodes 2.42.0 for Khanewal and Okara at both supported resolutions; prior dev-server, built-artifact, and browser evidence is recorded below.
+- **ERA5-Land live retrieval:** using the server-only credentials already configured in `/opt/fieldwise/.env`, authenticated catalogue access returned HTTP 200 and credentialed GRIB1 retrievals succeeded for both public sample AOIs. Credential values were only read in process memory for the request and were never printed or logged. Each payload contains 240 GRIB1 messages (48 each for 2t, 2d, tp, 10u, and 10v) for 2026-11-03 through 2026-11-04.
+- **Independent ERA5 oracle:** ecCodes 2.50.0 was installed only under `/tmp` and used as an independent decoder. The app's Fieldglass output matched ecCodes at both selected cells—Khanewal 71.6000°E, 30.6000°N and Okara 73.0000°E, 30.7000°N—for message identity, units, 48 valid times, P1/P2/time-range metadata, grid-cell values, and hourly assembly. The hourly precipitation values matched within 1e-7 m (zero difference in the recorded point comparisons), including the P1=23/P2=24 interval ending at 00 UTC. This payload marks precipitation as one-hour GRIB1 intervals; those amounts are used directly. The prior “cumulative value de-accumulated” UI copy was inaccurate for these files and has been corrected. Reproducible source payloads and ecCodes-oracle JSON are in `src/lib/weather/fixtures/` with CC-BY attribution.
+- **Defect fixed from live evidence:** ecCodes/Fieldglass spells wind units as `m s⁻¹`, while the adapter previously accepted only `m s**-1`; this silently dropped 10 m wind components. Equivalent spellings are now normalized strictly, and the real-payload test confirms all five requested variables join at the selected grid cell.
+- **Coverage and timestamps:** both sample AOIs return 48 unique joined hourly rows from the 168-hour requested period `2026-11-03` → `2026-11-09`, status `Partial`, with five provider-unavailable days. Provider availability is reported, not filled. The UI now renders all returned rows in its horizontal scroller; each row has a date/time, temperature, and precipitation amount.
+- **Browser walkthrough:** Chromium against `http://127.0.0.1:8081/` verified both AOI cards, their selected grid cells, 48 unique joined rows, and the 48/168 partial message. On Khanewal, a successful refresh kept the old result visible while loading and replaced it after success; a deliberately aborted server-function refresh showed an error while retaining the previous result; switching to Okara cleared the Khanewal result. No page errors were observed. The panel has no date selector; selecting a different period remains deferred, as previously directed.
+- **Other context products:** the PMD product is explicitly link/reference-only with no station series fetched. Flood context contains a dated 2025 district assessment, not a claim that a sample rectangle flooded. Crop context contains district estimates and census orchard/mango counts, not measurements for either sample rectangle. Unavailable district-level flood history and unreadable crop tables remain documented scope limitations.
+- **Runtime scope:** the active target is the Bun VPS. Cloudflare `workerd` execution is not an acceptance gate because no Worker deployment is planned. If that deployment target changes, test the artifact in workerd before deployment.
+- **QA:** weather 41/41, geospatial 11/11, Sentinel 29/29, TypeScript clean, targeted ESLint clean, Prettier clean, production build exit 0, and `git diff --check` clean. Tests/build used Bun 1.3.9 downloaded under `/tmp`; no host runtime or permission was changed. The repo-wide ESLint findings documented below are pre-existing and outside the touched files.
+
+### Planned work after Phase 3
+
+- **Deferred Phase 3 enhancement — date-range selector:** expose manual start/end dates for ERA5-Land, retain the 31-calendar-day safeguard, validate dates server-side, and show provider-reported gaps. This has not been implemented and was explicitly deferred by the owner.
+- **Deferred long-range rainfall analysis:** use a separate precipitation-only retrieval/aggregation path for multi-year history; return daily/monthly/annual summaries rather than thousands of hourly rows. Research and implementation details remain in the plan below; this work is not part of Phase 3 acceptance.
+- **Next roadmap phase — Phase 4:** persist an evidence ledger with farm-scoped authentication/access controls and provenance/audit history, following the roadmap later in this SITREP. Phase 4 has not started.
+
+No commits or pushes were made. The worktree remains dirty; preserve all pre-existing and newly verified work.
+
+> Historical snapshots below describe earlier checkpoints. Any prior “partial/unaccepted,” “not yet verified,” or old test-count language is superseded by this acceptance record. Read them for audit history only; do not follow their superseded next-action prompts.
+
+### User-provided boundary format review — estate-only imports (2026-11-10)
+
+- The supplied GeoJSON was one styled `LineString`, not a `Polygon`, and had no estate/sector role. The Field Boundaries dialog says sector polygons may be omitted and missing sectors remain unmapped, but `validateBoundaryGeoJSON` incorrectly rejected any file with zero sector polygons. Removed that extra rejection: a valid estate polygon can now be imported by itself, with each unmatched sector reported as a warning and kept off-map.
+- Closing all supplied line vertices to form a polygon creates a self-intersection between the penultimate return edge and the closing edge. A simple-ring candidate is possible only by excluding the final supplied point (`71.8631426, 30.4075813`) and closing the preceding point to the first. This assumption must be checked against the source/survey before the candidate is treated as the real estate boundary. No sector polygons were supplied or inferred.
+- The validator change and estate-only behavior passed in the owner's geospatial suite (11/11). The candidate shape has not been imported in the browser. The final supplied coordinate is still an unresolved geometry question; no boundary file was saved, and nothing was committed or pushed.
+
+### Historical QA checkpoint — preserve displayed observations through refresh (superseded by accepted walkthrough above)
+
+- The owner subsequently reran the weather suite in the VPS container: **40/40 passed**. TypeScript, targeted ESLint, and Prettier checks were reported clean. The owner also reran the geospatial suite after the estate-only import test was added: **11/11 passed**. These results supersede the earlier 38/40 weather run and formatting findings below in the preceding QA history.
+- The weather diagnostic key now uses the GRIB1 accumulation end time when the message provides a usable hourly P2; otherwise it uses the canonical reference time. The two assertions check the corresponding valid-time key. The timestamp/coverage source fixes have automated coverage and static checks, but automated passes do not independently establish correct values from the genuine CDS payload.
+- The owner requested Sentinel-2 and environmental results remain visible until manually refreshed, without timed auto-dismissal. No expiration timer was found in either panel. Previously, Sentinel search cleared the current results as soon as a search started, and WeatherPanel hid its last context whenever a refresh entered loading or error. Both panels now retain the last successful result while a refresh is pending or fails. A successful refresh replaces it. Sentinel observations retain the scene metadata they belong to while another scene is loading. Explicit AOI/date changes still clear results to avoid showing data under the wrong area or period.
+- Retention is in the mounted page's React state; results are not written to local/session storage. A browser reload or route unmount starts a fresh panel state. The panels report retrieval timestamps, so a retained result's age remains visible.
+- **Verification still required:** browser-check refresh-in-progress, refresh-failure, successful replacement, AOI/date clearing, and persistence while idle. Confirm the latest timestamp/coverage behavior in the running app for both sample AOIs. The current automated checks do not cover those browser interactions. No commit or push.
+
+### Historical QA checkpoint — live CDS defect discovery (fixes later verified; superseded above)
+
+- The owner manually added `CDS_API_URL` and `CDS_API_KEY` to `/opt/fieldwise/.env`. A local check reported only booleans: both variables are non-empty, the URL matches the documented API base, the key is not an obvious placeholder, and the file is mode `0600`, owner `fieldwise`. The check read the key only in process memory to evaluate whether it was empty/a placeholder; it was not displayed, logged, copied, or included in the response.
+- The owner recreated the VPS `fieldwise-dev` container with the existing image digest, user `995:986`, `/app` bind mount, working directory, loopback-only port `127.0.0.1:8081`, restart policy and Vite command, adding `--env-file /opt/fieldwise/.env`. A temporary copy on port 8082 received both variables and returned HTTP 200; the promoted container also received both variables and reported Vite ready. The root page later returned HTTP 200 (0.246 s) and `/@vite/client` returned HTTP 200 (0.096 s). These checks confirm container injection and app availability, not CDS authentication.
+- The owner's later browser result for Khanewal, period `2026-11-03` through `2026-11-09`, showed ERA5-Land `Available`, 50 timestamps, and a provider-availability notice that five requested days were skipped. This is evidence that the credentialed CDS path submitted a job, returned a file and produced decoded observations for Khanewal; it is incomplete coverage, not a full seven-day result. ECMWF was `Available`; link/reference products rendered. The displayed 50-row count is from the pre-fix UI and must not be treated as the corrected count.
+- **Data defect found from that live response:** the output showed duplicate `2026-11-03 00:00` entries, with temperature and precipitation separated. Code inspection confirmed instantaneous GRIB1 values were keyed to the cycle reference time instead of reference time plus P1; interval precipitation uses reference time plus P2. The timestamps also differed in their millisecond formatting. The adapter now resolves instantaneous valid times from the raw GRIB1 timing fields and canonicalizes UTC timestamps before joining variables. It now labels truncated ranges `Partial`, reports returned versus expected hourly timestamps, and removes the stale caveat claiming no CDS credential was available. Two regression tests were added for timestamp alignment and partial coverage.
+- The earlier generic-failure defect is also fixed: `retrieveWeatherContext` maps rejected providers through safe error mappers instead of hiding the error code/message. The CDS token and raw provider response are not exposed.
+- **Earlier checks, superseded by the latest QA output above:** the first timestamp/coverage-fix run reported weather 38/40 and formatting issues. After correcting the diagnostic key and formatting, the owner reported weather 40/40, clean typecheck, targeted ESLint and Prettier. Those results do not independently validate precipitation against the downloaded provider file.
+- **Next action:** refresh the browser, request both AOIs, and verify no duplicate valid times, matched temperature/precipitation timestamps, `Partial` status where days are unavailable, and the returned-versus-expected hour count. Independently compare at least one returned ERA5-Land GRIB1 payload against ecCodes before marking hourly precipitation validated. Do not print or share the token.
+- Credentials are now configured in the VPS runtime by the owner; they are not available to this agent's Docker session. The token was not displayed, logged, copied, or disclosed by the agent. The owner ran the container replacement; the agent did not change host permissions, install host tooling, or alter unrelated services. No commit or push was made.
 
 ### Authoritative project state
 
-- Phase 2 Sentinel-2 demo acceptance is met for the no-account demo: both Khanewal and Okara sample AOIs were verified against the live Microsoft Planetary Computer API for catalog search, selected item, visible preview PNG, heavy statistics, and light statistics. The complete local suite/build/format/lint checks passed in the user's session.
+- Phase 2 Sentinel-2 demo acceptance is met for the no-account demo: both Khanewal and Okara sample AOIs were verified against the live Microsoft Planetary Computer API for catalog search, selected item, visible preview PNG, heavy statistics, and light statistics.
 - CDSE Sentinel Hub is implemented but its credentialed live path remains pending because no OAuth credentials are configured. The public fallback only accepts the two fixed, labelled sample AOIs; these are not surveyed farms.
-- Latest Phase 2 commit: `1ca2545` (`Complete Phase 2 Sentinel-2 demo vertical slice`), pushed to `origin/main`. VPS handoff docs were committed and pushed as `e75de3b` before cloning; local `main` was clean and aligned at that point.
-- Current product truth: the selected-scene panel shows a satellite-derived NDVI visualization and metadata. Other dashboard measurements and operations remain illustrative/synthetic; there is no natural-color RGB layer, time series, farm diagnosis, weather feed, drone dispatch, irrigation control, or pollination workflow.
+- Latest Phase 2 commit: `1ca2545` (`Complete Phase 2 Sentinel-2 demo vertical slice`), pushed to `origin/main`. The VPS checkout is at `21b7731`; all Phase 3 work below is uncommitted.
+- **Current product truth:** Phase 3 is accepted within the scope recorded at the top of this SITREP. ECMWF IFS and ERA5-Land run for both fixed sample AOIs; ERA5 GRIB1 values/timing and hourly assembly are checked against ecCodes 2.50.0 fixtures captured from genuine CDS responses. Partial provider availability is shown rather than concealed. Flood and crop products are dated district-level context, while PMD is link-only; none claim farm-level observation. Other dashboard measurements and operations remain illustrative/synthetic; there is no natural-color RGB layer, time series, farm diagnosis, drone dispatch, irrigation control, or pollination workflow.
+
+### Historical Phase 3 implementation snapshot — superseded by final acceptance above
+
+- **ECMWF IFS — implemented, live, and independently verified.** Unchanged by this session and re-verified: index-driven byte ranges, CCSDS/AEC (template 5.42) decoding, parameter/run/lead-time checks, nearest-cell selection with ecCodes' tie-break, unit conversion, bounded sizes/timeouts/concurrency and per-field failure visibility. Verified for both AOIs at 0.25° and 0.1° against ecCodes 2.42.0, in the dev server, in the built artifact running without `node_modules`, and in the browser.
+- **ERA5-Land — credentialed request and decode now work for Khanewal, but returned coverage is partial and timestamp assembly is being corrected.** New tests use ecCodes-authored GRIB1 fixtures to check P1/P2/time-range decoding and reject period totals that cannot be represented as hourly rainfall. The owner's live response covered 50 timestamps for a requested 168-hour period and reported five unavailable days; duplicate timestamps separated variables, which led to the new P1-based instantaneous time mapping and canonical joining. Those latest edits still need tests and browser verification. The retrieved payload has not been independently cross-checked with ecCodes, so precipitation remains unvalidated. **Do not accept hourly precipitation until the fixes are verified and an actual provider GRIB1 payload is independently checked.**
+- **PMD — verified dated reference.** Unchanged: PMD publishes station observations for KHANEWAL (WMO 41677, 30.29 °N 71.93 °E) and OKARA (WMO 41646, 30.8 °N 73.4 °E) on a page read in a browser during QA; the product links to it and states each station's ~45 km / ~42 km distance from the sample areas. Nothing is retrieved: there is no documented API, the page refuses plain HTTP clients, and no reuse terms were established.
+- **Flood — now a dated district-level record, still not an AOI-level claim.** A Rapid Needs Assessment published by the Government of Pakistan and UN OCHA (23 September 2025) names **Khanewal** (high priority) and **Okara** (medium priority) among the 18 flood-affected districts assessed in the 2025 monsoon. It is listed first, with the explicit caveat that a district-level assessment does not mean the sample rectangle inside it was flooded. The Flood Forecasting Division's river-level publications remain as background, and the district-level PDMA Punjab situation reports are still unreachable from this environment.
+- **District crop context — now orchard-specific as well as crop estimates.** District wheat and fodder area and production come from the federal compilation of the Crop Reporting Service estimates; district **orchard** and **mango** figures come from the Pakistan Bureau of Statistics' _Agricultural Census 2024 — Punjab Report_ (June 2026), a census rather than an estimate: Khanewal 4,338 farms reporting orchards (25,162 acres of orchard area) and 8,230 farms reporting 932,284 mango trees; Okara 1,270 farms reporting orchards (3,943 acres) and 3,485 farms reporting 14,018 mango trees. The Crop Reporting Service's own mango table remains unreadable (page images), so no figure is taken from it and none is invented.
+- **Security/input boundary — re-checked.** Only the two fixed sample IDs are accepted; only their centroids are ever sent to a provider; no imported or private geometry is in the request contract. The CDS key is read server-side only, is never logged, and is **not** sent to the provider's asset host — the download link is validated as HTTPS and fetched without the credential. Provider-supplied job identifiers are validated and URL-encoded before they are put in a request path.
+- **UI — walked in a real browser.** 20 checks pass, including the loading state, the disabled AOI selector during a request, the rendered forecast with its attribution/units/grid cell/timestamps, the ERA5 setup state, the ERA5 success state (exercised with a synthetic, clearly-labelled product), the three reference products with their dated records, the absence of stale values after switching AOI, and no horizontal overflow at 390 px.
+- **Automated checks.** Weather 32/32, geospatial 10/10, Sentinel 29/29, `tsc --noEmit` clean, targeted ESLint clean, Prettier clean, production build exits 0, `git diff --check` clean. Repo-wide ESLint still reports the same 209 pre-existing Prettier errors in files this work did not touch.
+
+### Earlier ERA5-Land precipitation defect and correction (live-payload validation is recorded above)
+
+**What was wrong.** The adapter copied the decoded `total_precipitation` value into every hourly observation. ERA5-Land publishes that parameter as an accumulation, so the product was showing a running total as if it were an hourly amount.
+
+**What the provider documents** (ERA5-Land data documentation, "Accumulations", <https://confluence.ecmwf.int/spaces/CKB/pages/140385202/ERA5-Land+data+documentation>): "The accumulations in the short forecasts of ERA5-Land (with hourly steps from 01 to 24) … are accumulated from the beginning of the forecast to the end of the forecast step", with "HRES: accumulations are from 00 UTC to the hour ending at the forecast step", and for the store's validity time of 00 UTC "the accumulations are over the 24 hours ending at 00 UTC i.e. the accumulation is during the previous day".
+
+**The correction (Option A — de-accumulate the raw field).** ERA5-Land runs one daily forecast from 00 UTC, so each published value belongs to a _cycle_. The hourly amount for the hour that ended at a validity time V is the difference between V and the hour before it **inside the same cycle**; the first hour of a cycle starts from zero, and the hour that ends at 00 UTC belongs to the previous day's cycle. The implementation (`src/lib/weather/era5-precipitation.ts`, pure and separately testable) groups the decoded messages by cycle start and forecast step, derives the amounts, and reports an hour as missing — never as a wrong or negative amount — when its predecessor in the cycle is absent, when the provider's bitmap says the cell is absent, when the accumulation decreases inside a cycle, or when the message states no forecast step. Each reported timestamp is the **end** of the hour it describes, which is the validity time the provider publishes.
+
+**The boundary samples.** The first hour of a requested period needs the cumulative value of the hour before it, which belongs to the previous day's cycle, so the day before the period is requested as well and its observations are dropped afterwards (`planRetrieval`, `filterToPeriod`). No hour is silently omitted or shifted at midnight or at the edges of the selected range.
+
+**What is still unproven.** The mapping from an actual provider GRIB1 message to "cycle start" and "forecast step" could not be confirmed against a real ERA5-Land file here: the Climate Data Store's archive and its ARCO catalogue both answer `401 MISSING_CREDENTIALS` without a token, and the store's own sample viewer exposes no public payload. There is an additional decoder-integration question: the installed Fieldglass GRIB1 type documentation defines `forecastHours` from PDS P1 regardless of the time-range indicator, and exposes `offsetHours` separately; `fieldglass.server.ts` currently forwards `forecastHours` but not `offsetHours`, while the precipitation normalizer treats `forecastHours` as the accumulation end step. The pure de-accumulation tests construct already-decoded messages directly, so they do not verify how real GRIB1 metadata maps to those fields. Until a genuine file or independently validated GRIB1 fixture establishes the correct mapping, keep `precipitationValidated: false`; synthetic-browser values are not provider-validated rainfall.
+
+### ERA5-Land retrieval implementation and provider contract (earlier research snapshot)
+
+Each item was checked against the provider's published catalogue, process description and OpenAPI document rather than from memory.
+
+| Item                  | What was verified                                                                                                                                                                                                                                                    |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Request body          | `variable`, `year`, `month`, `day`, `time`, `area` (`[north, west, south, east]`), `data_format: "grib"`, `download_format: "unarchived"` — the fields the process description declares, with the area in the documented order.                                      |
+| Month grouping        | One request per calendar month, so every (year, month, day) combination the provider accepts is valid; the provider's constraints document pairs valid days with their month, and a request listing an invalid day is refused.                                       |
+| Date constraints      | The provider's own constraints document is read (publicly) and expanded into the days it holds; requested days it does not hold are dropped and reported.                                                                                                            |
+| Availability handling | When the constraints document cannot be read the availability is recorded as **unknown**, not "everything is available": the days are sent as asked, the provider still refuses what it does not hold, and the product says the availability could not be confirmed. |
+| Job polling           | `POST …/processes/reanalysis-era5-land/execution` → job id → `GET …/jobs/{id}` until `successful`, `failed`, `rejected` or `dismissed`, with a bounded wait; a queued job produces an explicit "still preparing" timeout rather than a value.                        |
+| Error mapping         | 401/403 → auth failure, 429 → rate limited, other statuses → a fixed non-sensitive provider message; a non-JSON body, a missing job id and a result without a download link are all provider-response-invalid errors.                                                |
+| Size limits           | The download is capped at 32 MB and aborts if the declared or streamed size exceeds it.                                                                                                                                                                              |
+| GRIB edition          | The decoder accepts GRIB1 and GRIB2 (the store serves ERA5-Land in GRIB edition 1, the forecast path uses edition 2); both are read through the same decoder.                                                                                                        |
+| Credentials           | The token is sent only to the configured API base, never to the provider's asset host; job ids are validated and URL-encoded; the asset link must be HTTPS. Nothing is logged beyond an error _name_.                                                                |
+
+### Flood and crop scope: what was found
+
+| Source                                                                                                                | What it gives                                                                                                                                                    | How it is used                                                                                                                                                                                  |
+| --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rapid Needs Assessment: Floods in Punjab (23 September 2025), Government of Pakistan and UN OCHA, hosted by ReliefWeb | A dated assessment of the 2025 monsoon covering 1,928 mouzas in 18 flood-affected districts, naming **Khanewal** (high priority) and **Okara** (medium priority) | The flood product's first record; the district names and priorities are quoted, and the caveat states that a district-level assessment does not establish flooding inside the sample rectangle. |
+| Agricultural Census 2024 — Punjab Report, Pakistan Bureau of Statistics (June 2026)                                   | A census (counts, not estimates) of farms reporting orchards and of fruit trees by district, in tables 6.3 and 6.4                                               | The crop product's orchard and mango figures, with the table references and the "district total, not this sample area" caveat.                                                                  |
+| Crops Area and Production (District Wise) 2021-22, Ministry of National Food Security & Research                      | District crop area and production from the provincial Crop Reporting Services                                                                                    | The wheat and fodder district estimates; the mango and citrus tables in the same publication are page images and no figure is taken from them.                                                  |
+| PMD Flood Forecasting Division                                                                                        | River-level bulletins, advisories and annual flood reports (2006–2025)                                                                                           | Kept as dated river-level background, explicitly not as district events.                                                                                                                        |
+| PDMA Punjab                                                                                                           | District-level flood situation reports                                                                                                                           | Still unreachable from this environment (blocked by the network filter); the district flood history beyond the 2025 assessment therefore remains partly undocumented.                           |
+
+### Cloudflare runtime: what was exercised, what stays open
+
+The project's plan is a Bun container running the dev server; there is no production deployment, and the Nitro `cloudflare-module` preset is the template's default build target rather than a deployment decision. **No host tooling was installed and no container or host configuration was changed.** What was exercised with the current code:
+
+- The documented production build (`bun run build` → Nitro `cloudflare-module`, `.output/server/wrangler.json`) succeeds and now carries the decoder binary: `.output/server/_virtual_fieldglass-wasm-*.mjs`, 2,367,060 bytes, decoding to a valid 1,775,239-byte WebAssembly module.
+- That artifact was copied to a directory with **no `node_modules`** and driven through its own `fetch` handler: HTTP 200, `status: "ok"`, 24 frames, 0 failures and the ecCodes-verified values for both AOIs at both resolutions — so the decoder loads without a filesystem.
+- A `NITRO_PRESET=bun` build, run as a real HTTP server in an isolated directory, served the same forecast path and values.
+- The client bundle contains no decoder binary and no server-only identifier (checked by searching the emitted assets).
+
+**Runtime limitation, not a Phase 3 gate:** workerd itself was not executed — no wrangler/workerd is installed here and installing host tooling is out of scope. The actual deployment target remains the Bun VPS, with no Cloudflare Worker deployment planned. If a Worker deployment is selected later, verify the artifact in workerd before deploying it there.
+
+### Earlier browser walkthrough (superseded by the live-data walkthrough recorded at the top)
+
+20/20 checks pass: the idle state names the sample-AOI provenance and shows no values; refresh shows the loading state and disables the AOI selector; the forecast renders with its status, source, resolution, grid cell, grid-cell method, issue time, retrieval time, attribution, temperature in °C, precipitation in mm labelled as a 0–3 h accumulation, the valid time and the 24-step strip; the ERA5 card shows the credential setup state in the live app and, with a clearly synthetic product, renders its hourly rows with the date and hour, the temperature, the hourly amount in mm/h, a dash for a missing hour and the note that the de-accumulation is not yet validated against a live payload; the flood product shows the dated district assessment with the right priority for each district; the crop product shows the census orchard and mango figures; switching AOI clears the previous result so no stale value appears under the wrong area; and there is no horizontal overflow at 390 px. Screenshots of the states were captured outside the repository.
+
+### Earlier automated checks (counts superseded by the final QA at the top)
+
+| Command                                                                                                                                                              | Result                                                                                                                                               |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run test:weather`                                                                                                                                               | 32/32 passed                                                                                                                                         |
+| `bun run test:geospatial`                                                                                                                                            | 10/10 passed                                                                                                                                         |
+| `bun run test:sentinel`                                                                                                                                              | 29/29 passed                                                                                                                                         |
+| `bun node_modules/typescript/bin/tsc --noEmit`                                                                                                                       | clean                                                                                                                                                |
+| `bun x eslint src/lib/weather src/lib/api/weather.functions.ts src/components/dashboard/WeatherPanel.tsx src/routes/index.tsx src/start.ts vite.config.ts src/types` | clean                                                                                                                                                |
+| `bun x prettier --check` on the same files, `package.json`, `SITREP.md`                                                                                              | clean                                                                                                                                                |
+| `bun run build` (production, Nitro `cloudflare-module`)                                                                                                              | exit 0; decoder binary present in the server bundle; absent from the client bundle                                                                   |
+| `git diff --check`                                                                                                                                                   | clean                                                                                                                                                |
+| `bun x eslint .` (whole repository)                                                                                                                                  | 209 errors, all pre-existing, in `src/integrations/supabase/*`, `src/lib/fieldwise-seed.ts`, `src/lib/fieldwise-service.ts` — untouched by this work |
+
+### Scoped limitations after Phase 3 acceptance
+
+- **ERA5-Land remaining data gaps — scoped, not an acceptance blocker.** The provider returned 48 of 168 expected timestamps for the default period and identified five unavailable days. Missing days remain absent and visible; no interpolation or fabricated values are used. The full 48-hour decoded samples and hourly assembly were independently cross-checked at both AOIs as recorded above.
+- **Cloudflare Workers runtime — out of scope for Phase 3.** The deployed development target is the Bun VPS container; there is no Cloudflare Worker deployment target. The Nitro Cloudflare build is a template artifact, not a deployment decision. The self-contained artifact was tested in other runtimes, but workerd was not executed. If a Worker deployment is later selected, workerd verification becomes a deployment gate then.
+- **District flood history — scoped limitation, not an acceptance blocker.** The product shows dated district-level assessments and FFD reports with explicit caveats; it does not claim AOI-level inundation. Older PDMA district situation reports could not be retrieved, and no machine-readable flood extent feed was established.
+- **Orchard-specific crop context — scoped limitation, not an acceptance blocker.** PBS 2024 census orchard/mango counts and the available district crop estimates are shown as regional figures. The unreadable CRS mango table and unavailable later estimate edition remain gaps; no farm-level crop claim is made.
+- **Reference product labels — code-inspected.** PMD is `missing` because no station observations are retrieved; the flood product is `ok` with dated district-level records; crop context is `ok` with populated district estimates/census figures. Their statuses describe the records actually present, not a farm-level retrieval.
+
+**Earlier next-action prompt (closed):** browser checks and ecCodes comparison were completed and are summarized at the top. The remaining bullets in this section are scope limitations, not open Phase 3 acceptance gates. No commit or push was made.
+
+### Close-of-day record — 2026-11-10 (earlier session; superseded by the handoff above)
+
+- Re-reviewed the Phase 3 implementation and prior QA summaries against the source. The attached summaries overstated validation and decoder error handling; those claims are not accepted as evidence.
+- Reconciled the top handoff, the historical source-evaluation section, the older implementation notes, and the initial verification notes so they now direct work to the QA gates above. Historical sections remain for traceability and must not override the current handoff.
+- `git diff --check` — passed after SITREP edits. App page `http://127.0.0.1:8081/` returned HTTP 200 during this session; this is only a page availability check, not weather-function or UI-interaction acceptance.
+- Project checks and end-to-end weather interactions were not run. Host Node/Bun are unavailable and Docker socket access is denied to this session. No runtimes, permissions, or services were changed to bypass that restriction.
+- No code was changed as part of this closeout; the only additional change is this SITREP reconciliation. No commit or push was made.
+- Close-of-day working tree: modified `.env.example`, `SITREP.md`, and `src/routes/index.tsx`; untracked `src/components/dashboard/WeatherPanel.tsx`, `src/lib/api/weather.functions.ts`, and `src/lib/weather/` (5 files). These 7 untracked files contain 2,026 lines. Base remains commit `21b7731` on `main`, tracking `origin/main`.
+
+**Next session checklist (from that session):** start with the current handoff above; work in the existing application container if access is available; add/repair tests for sample-ID/date validation and forecast decoding/status behavior; independently compare real ECMWF fields for both AOIs; update UI states and copy based on actual server results; run and record checks in the container; then revise the handoff with evidence. Leave Phase 3 marked unaccepted until all required gates pass. Do not add CDS credentials or commit/push as part of the resume step without a separate authorized task.
 
 ### VPS move — initial setup complete
 
@@ -27,9 +175,77 @@ The user authorized moving development to the existing Contabo VPS after Phase 2
 
 **Verification performed:** image availability checked; `bun install --frozen-lockfile` completed (473 packages); Vite reported ready on 8081; VPS loopback HTTP and PC SSH-tunnel requests both returned HTTP 200 with the rendered app (about 60 KB). Confirmed listener binding is `127.0.0.1:8081`; existing Beszel/Uptime Kuma services remained running on their original ports. The live satellite adapter was not re-exercised after moving; Phase 2's live PC API verification remains the evidence for that feature.
 
-### Next build phase after VPS setup
+### Phase 3 source decision — research and implementation acceptance completed
 
-Proceed to Phase 3 on the VPS: free/open historical weather and flood context plus a current forecast, keeping observations, reanalysis, forecasts, and official flood records as separate sourced products. First compare provider coverage, terms, resolution, update cadence, and limits for Khanewal and Okara. No paid imagery/provider is in scope for the demo. Keep regional values distinct from farm measurements and do not infer current flooding from historical flood layers.
+The provider comparison below records the research decision for the two public sample AOIs. Live retrieval and acceptance evidence is summarized at the top of this SITREP. The selected minimal set remains ERA5-Land for historical reanalysis, ECMWF Open Data IFS for forecast, and official PMD/PDMA/FFD/Punjab CRS references where no dependable programmatic feed was established. These remain grid/regional estimates or dated records, not farm observations. No paid imagery/provider is in scope.
+
+---
+
+## Earlier QA Review — Phase 3 FarmWise weather/context (superseded snapshot, 2026-11-10)
+
+This was a separate agent's shell-blocked snapshot. Its blocked findings and file inventory are historical and are superseded by the current handoff and later owner-provided outputs near the top of this SITREP. The genuine CDS payload comparison and latest full browser interaction checks remain open as stated in the current handoff.
+
+### QA scope and method
+
+- Verified via code inspection: AOI input validation, date validation, default period computation, product type distinctness, grid-cell selection metadata, caveat/invariant labels.
+- Verified via owner-provided context: ECMWF IFS forecast vs ecCodes, ERA5-Land partial data retrieval, CDS credentials configured in VPS runtime, test suite results.
+- Shell environment unavailable for independent test execution; browser not accessible for live interaction.
+- No credentials accessed, printed, or logged. CDS_API_KEY never requested from owner.
+
+### QA findings — verified
+
+| Area                 | Finding                                                                                                 | Status         |
+| -------------------- | ------------------------------------------------------------------------------------------------------- | -------------- |
+| AOI restriction      | Only `sample-khanewal-orchards` and `sample-okara-farmland` accepted via zod enum; unknown IDs rejected | Verified       |
+| Date validation      | ISO format, real calendar date, from<=to order, max 31 days                                             | Verified       |
+| Default period       | Previous 7 completed UTC days (computed server-side)                                                    | Verified       |
+| Product distinctness | ERA5-Land historical, ECMWF forecast, PMD station, flood event, crop district — separate types/statuses | Verified       |
+| Grid-cell disclosure | Method, resolution, cell center shown for grid-sampled products                                         | Verified       |
+| Crop context         | District-level CRS + census data; explicitly caveated as not farm-level                                 | Verified       |
+| ECMWF forecast       | Verified against ecCodes for both AOIs at two resolutions                                               | Owner-provided |
+| CDS credentials      | Configured in VPS runtime                                                                               | Owner-provided |
+| ERA5-Land            | Partial status, 48/168 hourly timestamps, 5 missing days                                                | Owner-provided |
+| Test suites          | Weather 40/40, geospatial 11/11, tsc clean, ESLint clean, Prettier clean                                | Owner-provided |
+
+### QA findings — cannot independently verify (blocked)
+
+| Area                       | Blocker                                                      | Required action                                   |
+| -------------------------- | ------------------------------------------------------------ | ------------------------------------------------- |
+| ECMWF forecast values      | Shell broken; cannot run ecCodes or dev server               | Re-run in project container                       |
+| ERA5 precipitation         | Genuine CDS GRIB1 payload needed; ecCodes comparison pending | Owner: validate against CDS payload using ecCodes |
+| Live browser behavior      | Shell broken; browser not accessible                         | Owner: verify Khanewal + Okara in browser         |
+| PMD/flood product statuses | Code lines 104-549 not readable via tool truncation          | Code inspection needed                            |
+| Automated re-run           | Shell broken                                                 | Re-run `bun run test:weather` etc.                |
+
+### Acceptance decision
+
+**Phase 3: PARTIAL — not yet accepted.**
+
+Reasons:
+
+1. ERA5-Land hourly precipitation remains unverified pending ecCodes comparison against a genuine CDS GRIB1 payload. The UI correctly marks this unverified.
+2. PMD/flood product statuses could not be confirmed from code inspection (builders at lines 104-549 not visible due to tool truncation).
+3. Live browser behavior for both AOIs could not be exercised (shell broken).
+4. Automated test suites could not be re-run independently (shell broken).
+
+### Manual actions required from owner
+
+1. **ERA5 precipitation validation:** Retrieve a genuine CDS GRIB1 payload for the 2026-11-03→2026-11-09 period and compare message identifiers/variables, GRIB1 reference time, P1/P2 and time-range indicator, valid timestamps, grid-cell identity/value, and precipitation accumulation/de-accumulation against ecCodes independently. Include a cycle boundary around 00 UTC. Compare at least one representative point for both AOIs if the payload includes them.
+2. **Live browser verification:** For Khanewal and Okara, verify displayed period (2026-11-03 → 2026-11-09), Partial status, returned/expected count (48 of 168), missing-day message, paired temperature+precipitation on each hourly row, duplicate timestamp absence across all 48 rows, AOI clearing on switch, and refresh retention behavior.
+3. **PMD/flood/crop status confirmation:** Inspect PMD station reference and flood-event product builders; confirm status labels truthfully reflect data presence (not "Available" when empty).
+4. **Re-run automated checks:** `bun run test:weather`, `bun run test:geospatial`, `bun x tsc --noEmit`, targeted ESLint, Prettier.
+
+### Deferred items (out of scope for Phase 3)
+
+- Date-range selector in UI (no date controls exist; default period only)
+- Multi-year rainfall analysis
+- workerd/Cloudflare Worker verification (actual runtime is Bun VPS; no Worker deployment)
+
+### Files changed in Phase 3
+
+Modified: `.env.example`, `SITREP.md`, `src/routes/index.tsx`
+New: `src/components/dashboard/WeatherPanel.tsx`, `src/lib/api/weather.functions.ts`, `src/lib/weather/` (5 files)
+Total new lines: ~2,026
 
 ## Session handoff — 2026-11-08
 
@@ -64,7 +280,7 @@ The broader vision remains specialty-crop aware. The platform may eventually con
 ### What is actually built and visible now
 
 - The dashboard can run locally, but its operational metrics and orchard condition values remain synthetic/demo data.
-- The visible map is demo geometry with the ability to import validated estate/sector GeoJSON. **There is still no real basemap, satellite map layer, or live weather feed.** Imported boundaries are stored in browser `localStorage` only. Phase 2 added a _separate_ Sentinel-2 observation panel below the dashboard grid (not a map overlay): with CDSE server credentials it uses Sentinel Hub; without them, only the Khanewal/Okara sample AOIs use the public Microsoft Planetary Computer fallback. Imported boundaries do not go to the public fallback.
+- The visible map is demo geometry with the ability to import validated estate/sector GeoJSON. **There is still no real basemap, satellite map layer, or live weather feed.** Imported boundaries are stored in browser `localStorage` only. Phase 2 added a _separate_ Sentinel-2 observation panel below the dashboard grid (not a map overlay): with CDSE server credentials it uses Sentinel Hub; without them, only the Khanewal/Okara sample AOIs use the public Microsoft Planetary Computer fallback. Imported boundaries do not go to the public fallback. _(Superseded in part on 2026-11-10: the ECMWF Open Data forecast feed now runs live for the two fixed sample AOIs — see the current handoff above. There is still no basemap and no satellite map layer.)_
 - No real diagnosis, insect/disease model, irrigation telemetry/control, drone dispatch, spraying, fumigation, or pollination workflow is implemented. These remain planned and evidence-gated. NDVI in the Phase 2 panel is reflectance only and is never presented as a diagnosis or recommendation.
 - Phase 1.1 GeoJSON validation hardening is implemented and verified; details, tests, checks, and known limits are recorded in the Phase 1.1 section. No commit was made; all pre-existing working-tree changes are preserved.
 - Phase 2 (secure Sentinel-2 observation slice) is implemented and verified for everything this environment permits: provider choice, setup, bounds, security handling, files, limitations, and the exact checks performed are recorded in the Phase 2 work package below.
@@ -353,7 +569,23 @@ Research basis: `docs/research/fieldwise-orchard-intelligence-research-report.md
 
 #### Phase 3 — Farm environmental history and live forecast
 
-**Build:** Add historical weather and current forecast as separate, timestamped data products. Evaluate PMD access plus gridded historical sources such as ERA5-Land and CHIRPS; evaluate one forecast provider for actual pilot coverage, variables, freshness, licensing, API terms, and cost before selecting it. Add dated flood-event/extent context and regional crop-area context where authoritative data is available. Treat historical flood layers as exposure context, not current water status. Do not assume WaPOR has fresh higher-resolution data for a selected Pakistan site; verify coverage first.
+**Build:** Add historical weather and current forecast as separate, timestamped data products. Add dated flood-event/extent context and regional crop-area context where authoritative data is available. Treat historical flood layers as exposure context, not current water status. Do not assume WaPOR has fresh higher-resolution data for a selected Pakistan site; verify coverage first.
+
+**Source comparison and initial decision (2026-11-09; Khanewal and Okara sample AOIs):**
+
+| Candidate                                                                                                                                             | Coverage, variables, resolution and cadence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Terms/access/limits                                                                                                                                                                                                                                                                                                                  | Phase 3 decision                                                                                                                                                                                                                                                                                                          |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [PMD (Pakistan Meteorological Department)](https://weather.gov.pk/regional/Punjab)                                                                    | Official station observations, climate summaries, station normal/record pages, regional reports, and an agro-advisory page with a 7-day Khanewal forecast are publicly visible. Its Punjab site lists current station highlights including Khanewal; Okara also appears in station tables. Coverage and cadence vary by product; no AOI-specific station series or public documented API was established.                                                                                                                    | Official public pages/reports were accessible without credentials in this review. A programmatic data service, stable API limits, and reuse/license terms for bulk station records remain unverified.                                                                                                                                | Keep as the preferred local reference and possible future station layer, but do not scrape or label gridded values as PMD observations. Confirm station identity, distance, actual data availability, and terms before any connector.                                                                                     |
+| [ERA5-Land](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-land) (Copernicus Climate Change Service / ECMWF)                              | Global land reanalysis, 0.1° / about 9 km, hourly from 1950; includes 2 m temperature/dewpoint, precipitation, wind and land/surface variables. ERA5-Land-T is refreshed daily and is available about 5 days behind real time; preliminary values are later replaced by consolidated data around two months after the month. Both AOIs fall inside coverage.                                                                                                                                                                 | Dataset page provides CC BY attribution. CDS access requires user account; documented CDS/MARS and ARCO access paths, not a simple unauthenticated JSON API. Operational data availability can be delayed.                                                                                                                           | Select as the primary long historical weather product. Keep the ERA5-Land-T provisional/final version and retrieval time explicit. Prototype ingestion should be small and server-side.                                                                                                                                   |
+| [CHIRPS v3](https://www.chc.ucsb.edu/data/chirps3)                                                                                                    | Global land rainfall estimate at 0.05° (about 5 km at these latitudes), 1981–near present; daily, pentad, dekad, monthly and longer aggregates. Preliminary station blend appears 2 days after each pentad ends; final product is usually produced monthly around the third week of the next month. It is rainfall-only. Daily products partition pentadal totals and do not define a uniform station observation day.                                                                                                       | Public downloadable files (GeoTIFF, NetCDF, BIL, COG); CC BY 4.0. No API key; bulk/static download is the documented path.                                                                                                                                                                                                           | Strong candidate for independent rainfall comparison/validation, but defer from the smallest first slice because ERA5-Land already supplies rainfall and CHIRPS adds another spatial/temporal product to explain. Revisit if rainfall accuracy/context merits a second estimate.                                          |
+| [Open-Meteo Forecast API](https://open-meteo.com/en/docs)                                                                                             | Global multi-model point forecasts, hourly normalized output, up to 16 days; variables include temperature, precipitation/probability, humidity, wind and ET₀. Most global source models refresh about every 6 hours; selected “best match” model can vary by point.                                                                                                                                                                                                                                                         | No key for free noncommercial use; free tier limits are 10,000 calls/day, 5,000/hour, 600/minute, with no uptime guarantee. API access is explicitly noncommercial only even though returned data is CC BY 4.0. Commercial plans are paid.                                                                                           | Do not select for FieldWise product integration: commercial product intent conflicts with free API terms. Useful only for a strictly noncommercial evaluation sandbox.                                                                                                                                                    |
+| [ECMWF Open Data IFS forecast](https://www.ecmwf.int/en/forecasts/datasets/open-data)                                                                 | Global operational forecast; 4 runs/day (00/06/12/18 UTC), hourly/3-hourly early leads and 6-hourly later steps, up to 15 days; the free subset added 0.1° output (about 11 km at Punjab latitudes) on 2026-10-20, in addition to 0.25°. Surface fields include temperature, dewpoint, precipitation, wind, pressure and radiation, subject to the published subset.                                                                                                                                                         | CC BY 4.0 and ECMWF terms permit commercial reuse with attribution. GRIB2 files; rolling archive holds the latest 12 runs (about 2–3 days). Public portal/cloud mirrors; no API key documented for public subset. 0.1° appears about two hours after 0.25°; portal connection limits are published (500–2,000 concurrent, variable). | Select as the initial open forecast provider. Implement a narrow GRIB subset/point extraction with server-side retrieval and explicit run/issue and valid times; do not assume a persistent historical forecast archive. Validate variables, download size, cloud mirror access, and Pakistan availability before coding. |
+| [PDMA Punjab](https://pdma.punjab.gov.pk/situational-reports) / [PMD Flood Forecasting Division](https://ffd.pmd.gov.pk/flood-reports) flood material | PDMA Punjab publishes event situation reports (including dated 2022 reports), flood maps and impact/affected-district materials; PMD Flood Forecasting Division publishes annual flood reports. These are dated event evidence, often PDF/maps at district or river-corridor level, not a continuous current-inundation layer. PITB describes a public flood-management interface and satellite-based inundation assessments, but this review did not establish a stable downloadable GIS/API endpoint for AOI intersection. | Public official reports/maps were accessible; machine-readable formats, reuse terms and API limits are not documented consistently. Some details are in PDF or map images.                                                                                                                                                           | Use as cited, dated event records in the context view only once a usable item is manually reviewed/georeferenced. Do not infer current flooding or claim AOI overlap from district-level reports. A stable farm-level historical flood layer is not selected yet.                                                         |
+| [Agriculture Department, Government of Punjab — Crop Reporting Service](https://agripunjab.gov.pk/crs-crop-estimates)                                 | District-wise crop area and average yield estimates are published by crop/year in PDF estimates. The reviewed 2023–24 estimates include mango and districts Okara and Khanewal; newer crop estimate publications are also listed. Geography is district, not farm/parcel.                                                                                                                                                                                                                                                    | Public PDFs via the department website; source credit names Crop Reporting Service. No documented API, update SLA, or general reuse license was found in this review.                                                                                                                                                                | Select as regional crop context, not per-AOI crop presence. Present crop, district, estimate year, unit and source link; do not infer crop identity for the sample rectangle. Defer automated ingestion until crop/year table parsing and terms are reviewed.                                                             |
+
+**Chosen minimal source set:** ERA5-Land for historical gridded weather, ECMWF Open Data IFS for a commercially reusable forecast, PMD as a local reference pending a documented data interface, Punjab PDMA/FFD dated reports for reviewed flood-event context, and Punjab Crop Reporting Service annual district estimates for regional crop context. CHIRPS v3 is a credible optional rainfall cross-check; Open-Meteo is excluded from product use because its free service is noncommercial. This is a source decision, not evidence that connectors or AOI data retrieval have been implemented. The public Khanewal/Okara rectangles remain demo AOIs, not farms.
+
+**Next implementation gate:** confirm coordinates are sampled to a declared nearest grid cell (with cell center, grid spacing, and method shown), then prototype one historical request and one forecast file extraction for each fixed AOI. Record provider status, units, retrieval time, missing-data behavior, and response sizes without logging precise geometry or provider payloads. Resolve public flood/crop item formats and their reuse terms before importing records. Keep the products strongly distinguished as PMD observed station data, ERA5-Land reanalysis estimates, ECMWF forecast runs (issue and valid time), dated flood reports/extents, and district/year crop statistics.
 
 **Done when:** Users can see source, spatial resolution, units, observation/issue time, valid time, retrieval time, freshness, and uncertainty/gaps; historical and forecast layers cannot be confused; no provider data is represented as an on-farm sensor reading. Weather context is visible beside satellite time series.
 
@@ -403,7 +635,7 @@ Research basis: `docs/research/fieldwise-orchard-intelligence-research-report.md
 
 1. Phase 1.1 GeoJSON validation and Phase 2 Sentinel-2 demo slice are complete; do not restart them unless a specific defect is found.
 2. The app is running in the isolated VPS workspace and is openable with VS Code Remote SSH using `fieldwise-vps`.
-3. Start the current **Phase 3 — Farm environmental history and live forecast** below: compare free/open providers for Khanewal and Okara first, then build sourced historical weather, one current forecast, and available flood/regional crop context.
+3. Continue **Phase 3 QA remediation** from the current handoff: make the ECMWF forecast path trustworthy or explicitly unavailable, fix AOI/date validation, and verify product states and UI before acceptance. Source comparison is recorded below and does not need to be repeated unless provider documentation has changed.
 4. Keep the pilot selection unresolved. Khanewal and Okara are sample AOIs only, not surveyed farms or a confirmed pilot. Continue assumption gathering separately from implementation.
 5. Follow the current Phase 4–8 roadmap below one phase at a time. Keep treatment and controller actions simulated or advisory until the evidence, qualified partners, equipment, and safety gates exist.
 
@@ -548,6 +780,7 @@ The import is stored under `fieldwise.imported-boundary.v1` in localStorage for 
 **Files reviewed/changed:** `src/lib/sentinel/planetary-computer-adapter.server.ts` (new — the PC fallback adapter), `src/lib/sentinel/sentinel.test.ts` (+8 focused tests), `src/lib/api/sentinel.functions.ts`, `src/lib/sentinel/cdse-adapter.server.ts`, `src/lib/sentinel/types.ts`, `src/components/dashboard/SentinelObservationPanel.tsx`, `SITREP.md`. Official PC specs (`pc-data-openapi.json`, `pc-stac-openapi.json`) diffed during development; downloaded to the approved temp dir outside the repo — not committed.
 
 **Root causes fixed (all confirmed against the live public API):**
+
 1. Expressions used indexed band names (`asset1_b1`, …); the provider requires asset names (`B08`, `B04`, `SCL`) with `asset_as_band=true`. Fixed via `buildMaskedNdviExpression` / `buildPreviewNdviExpression` / `buildTopSentinelExpression`.
 2. `nodata=-9999` caused unhandled 500s and never masks expression output. Fixed: `nodata` never sent.
 3. Two-array `histogram=[counts[],edges[]]` parsing produced bogus bins. Fixed: strict `parseHistogram`.
@@ -557,13 +790,13 @@ The import is stored under `fieldwise.imported-boundary.v1` in localStorage for 
 
 **Stages verified live (real provider requests, sanitized evidence only — status codes, sizes, numeric ranges; no response bodies, signed URLs, credentials, or geometry logged):**
 
-| Stage | Khanewal | Okara | Evidence |
-|---|---|---|---|
-| Catalog search (`POST /api/stac/v1/search`) | 200 | 200 | 16 / 28 scenes, window 2026-10-11→2026-11-05, all with `eo:cloud_cover` |
-| Selected item (`GET /collections/…/items/{id}`) | 200 | 200 | Newest scenes validate; id + B08/B04/SCL assets match |
-| Preview (`POST /api/data/v1/item/feature/…png`) | 200 | 200 | PNG signature + IHDR dims match request; `ndvi-grayscale` encoding; 40 KB / 149 KB |
-| Statistics heavy (`POST /api/data/v1/item/statistics`) | 200 | 200 | Block keyed by expression string |
-| Statistics light (top-sentinel min) | 200 | 200 | min within [-1, 1], min ≤ max |
+| Stage                                                  | Khanewal | Okara | Evidence                                                                           |
+| ------------------------------------------------------ | -------- | ----- | ---------------------------------------------------------------------------------- |
+| Catalog search (`POST /api/stac/v1/search`)            | 200      | 200   | 16 / 28 scenes, window 2026-10-11→2026-11-05, all with `eo:cloud_cover`            |
+| Selected item (`GET /collections/…/items/{id}`)        | 200      | 200   | Newest scenes validate; id + B08/B04/SCL assets match                              |
+| Preview (`POST /api/data/v1/item/feature/…png`)        | 200      | 200   | PNG signature + IHDR dims match request; `ndvi-grayscale` encoding; 40 KB / 149 KB |
+| Statistics heavy (`POST /api/data/v1/item/statistics`) | 200      | 200   | Block keyed by expression string                                                   |
+| Statistics light (top-sentinel min)                    | 200      | 200   | min within [-1, 1], min ≤ max                                                      |
 
 **Khanewal result:** scene `S2C_MSIL2A_20261105T055021_R048_T42RYV_20261105T091103` (2026-11-05, Sentinel-2C, 10 m, tile cloud 0.37%). NDVI min=-0.066, max=0.390, mean=0.093, stDev=0.064, p50=0.107. sampleCount=1,537,018, noDataCount=1,053,668, validPct=31.45% (extensive no-data/masked area in this scene — expected, not a defect). statsResolutionMeters≈10.17.
 
@@ -574,6 +807,7 @@ The Khanewal/Okara valid-pixel discrepancy (31% vs 91%) reflects different land 
 **Browser-visible run:** Not automatable in this environment (no Playwright/Puppeteer; none added per the no-new-dependencies rule). TanStack Start server functions were not reachable at a discoverable route in dev tooling, so live verification was performed by importing and calling the real adapter module directly — the same code path and HTTP requests the server function uses, against the live provider, not mocked. Manual repro when the provider recovers: `npm run dev` → `http://localhost:8080/` → Khanewal sample AOI → dates 2026-10-09 to 2026-11-08 → search → select newest scene → confirm preview + statistics/histogram/mask disclosure/legend/provenance/attribution → switch to Okara → repeat → confirm stale preview/statistics clear on AOI/date/scene change → trigger safe failure (imported boundary on PC path → `credentials_missing`).
 
 **Checks + outcomes:**
+
 - `npx tsc --noEmit` — passed
 - `npm run test:sentinel` — 29/29 passed
 - `npm run test:geospatial` — 10/10 passed
@@ -583,6 +817,7 @@ The Khanewal/Okara valid-pixel discrepancy (31% vs 91%) reflects different land 
 - `git diff --check` — passed
 
 **Security/privacy review:**
+
 - No credentials, tokens, signed URLs, AOI geometry, or provider response bodies in logs: `safeFetch`/`logSafe` record only stage, hostname, status, attempt, and fixed error code.
 - No provider code reaches the client bundle: adapter imported only inside server-fn handler bodies; build scan confirmed zero provider endpoints/secrets in `.output/public`.
 - `.env` has no `CDSE_OAUTH_CLIENT_ID`/`CDSE_OAUTH_CLIENT_SECRET` values — CDSE credentialed path remains pending.
@@ -590,6 +825,7 @@ The Khanewal/Okara valid-pixel discrepancy (31% vs 91%) reflects different land 
 - No new dependencies added. No database is required for direct provider retrieval/display; persistence is only needed for stored history/repeat access.
 
 **Limitations / pending:**
+
 - CDSE credentialed live verification (no credentials configured) — pending.
 - Single scene only — no time series, baseline, or change detection (Phase 3+).
 - Preview is display-resampled; statistics carry the exact figures.
@@ -601,3 +837,96 @@ The Khanewal/Okara valid-pixel discrepancy (31% vs 91%) reflects different land 
 ## Legacy execution sequence
 
 The earlier linear sequence (boundaries → satellite → persistence → simulated actions → ROI) is retained above as historical implementation context and is superseded by the **Reconciled build roadmap** and current handoff. The statement in older notes that changes were local and uncommitted describes the state at the time those notes were written; it is not the current Git status. See `docs/AGENT_HANDOVER.md` for the current repository, VPS, tooling, and next-phase handoff.
+
+## ### Phase 3 — initial implementation record (2026-11-09; current status corrected in handoff)
+
+**Change record — what was implemented in this working tree**
+
+This section records the initial code added for the two fixed public sample AOIs (Khanewal and Okara). It does not mean Phase 3 has passed QA or acceptance. The authoritative status and remaining gates are in the current handoff at the top of this file.
+
+1. **Historical weather product — ERA5-Land reanalysis** (server-only adapter `src/lib/weather/era5-land.server.ts`, server function `retrieveEra5LandHistory`). Grid cell selection: nearest 0.1° grid point to AOI centroid (method stated, cell center shown). CDS credentials are not configured in this environment, so the product returns an explicit `credentials_required` state with no fabricated values. The CDS API path (NetCDF/GRIB parsing) is documented but not implemented — this is a setup/error state, not live data.
+
+2. **ECMWF Open Data IFS forecast attempt** (server-only adapter `src/lib/weather/ecmwf-ifs.server.ts`, server function `retrieveEcmwfForecast`). Code attempts to retrieve GRIB2 forecast fields from the public endpoint without credentials. The custom parser and its grid/time/value outputs have not been validated against a real field and an independent decoder. Do not treat its output as an accepted live forecast. The implementation can turn individual failures into null fields and currently marks the product `ok` if any one requested value decodes; this status behavior needs correction.
+
+3. **Combined context product** (`retrieveWeatherContext` in `src/lib/api/weather.functions.ts`) that returns ERA5-Land, ECMWF forecast, PMD station reference, PDMA/PMD flood-event context, and Punjab Crop Reporting Service district statistics as separate, distinct products in one call. One product's failure does not block the others.
+
+4. **PMD station, flood, and crop context** — these are reference-only products with no programmatic data fetch or imported records (PMD pages, dated PDMA/PMD FFD reports, Punjab CRS crop/yield PDFs). Their current status is `missing`; links and regional context are not observations or verified event/estimate records.
+
+5. **New UI** — `src/components/dashboard/WeatherPanel.tsx` renders all 5 product types with distinct labels, source, resolution, units, grid method, cell center, issue/valid times, retrieval time, status chips, caveats, and a "sample AOI, not a surveyed farm" banner. Wired into `src/routes/index.tsx`.
+
+**Files changed or added**
+
+**New files:**
+
+- `src/lib/weather/types.ts` — shared types for all 5 weather product types (ERA5-Land historical, ECMWF IFS forecast, PMD station reference, flood-event context, crop-district statistics), response envelopes, and error vocabulary.
+- `src/lib/weather/aoi.ts` — fixed public sample AOIs (Khanewal, Okara), `bboxCenter`, `selectGridCell`, `resolveWeatherAoi`. Grid-cell selection only accepts the two fixed sample AOIs; imported/private boundaries are never sent to public providers.
+- `src/lib/weather/errors.ts` — weather-specific user-safe error messages.
+- `src/lib/weather/ecmwf-ifs.server.ts` — ECMWF Open Data IFS adapter. Server-only; no credentials; GRIB2 section parsers (0–7), `fetchGribFieldValue`, `nearestGridPointIndex`, `latestCycle`.
+- `src/lib/weather/era5-land.server.ts` — ERA5-Land CDS adapter. `hasEra5LandCredentials`, `era5LandCredentialsRequired`, `retrieveEra5LandHistorical`, `toEra5LandError`.
+- `src/lib/api/weather.functions.ts` — TanStack Start server functions: `retrieveEra5LandHistory`, `retrieveEcmwfForecast`, `retrieveWeatherContext` (all products), `toWeatherError`.
+- `src/components/dashboard/WeatherPanel.tsx` — UI panel for all weather products.
+
+**Modified files:**
+
+- `.env.example` — added `CDS_API_URL` and `CDS_API_KEY` documented under "ERA5-Land historical weather".
+- `src/routes/index.tsx` — added `<WeatherPanel />` to the dashboard.
+- `SITREP.md` — this implementation record.
+
+**Setup requirements**
+
+1. ERA5-Land historical retrieval is **not implemented**. The missing-credential state is present, but adding CDS credentials alone will not enable retrieval. Do not add credentials until the request, response parsing, AOI/date validation, and a live acceptance path are implemented.
+
+2. ECMWF Open Data IFS requires no API key for its public subset, but the implemented adapter is not accepted until decoded values and status/error behavior pass the gates in the current handoff.
+
+3. No other infrastructure changes. No database, PostGIS, queue, worker, or paid imagery added.
+
+**Checks performed**
+
+- TypeScript, focused weather tests, lint/format, and build — not run for this weather slice in the close-of-day session; see the current handoff for the environment blocker.
+- Live ECMWF forecast fetch and GRIB2 decoding — not independently verified. A page HTTP 200 is not forecast-path verification.
+
+**Source limitations and blocked access**
+
+- **ERA5-Land via CDS**: credentials not configured; NetCDF/GRIB parsing not implemented; no historical values fetched. Returns a clear setup state. This is documented as a limitation, not fabricated data.
+- **ECMWF forecast**: the hand-written parser is unverified and its section offsets/widths are suspect. Field failures can become null values; one successful field can currently make the whole product `ok`. Do not use returned values as accepted evidence until independently cross-checked.
+- **PMD, PDMA/FFD, Punjab CRS**: link-only, no programmatic retrieval; no stable machine-readable GIS/API feed exists.
+- The two sample AOIs remain public demo rectangles, not surveyed farms.
+
+**Notes on the working tree**
+
+- This working tree is **uncommitted**. Files are added on top of `21b7731` (main, https://github.com/tariqshaz/fieldwise-orchard-intelligence).
+- No tests added. No build run yet.
+
+## ### Phase 3 — initial verification notes (superseded by close-of-day QA record)
+
+**ERA5-Land credential verification**
+
+- CDS API credentials (`CDS_API_URL`, `CDS_API_KEY`) are **not configured** in the VPS runtime environment at `/opt/fieldwise/.env`.
+- The file currently contains only Supabase publishable keys (`SUPABASE_PROJECT_ID`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`).
+- The ERA5-Land adapter (`src/lib/weather/era5-land.server.ts`) correctly detects the absence of credentials and returns a `credentials_required` product status with the message: _"CDS API credentials are not configured on this server. Set CDS_API_URL and CDS_API_KEY (server-only, see .env.example) to enable reanalysis retrieval."_
+- No historical reanalysis values are fabricated — the product shows `status: "credentials_required"` with an empty `observations` array and appropriate caveats about reanalysis being grid-cell estimates, not on-farm sensor readings.
+- Do not add CDS credentials yet: the adapter does not implement the credentialed request or parse path, so credentials alone cannot enable historical retrieval.
+
+- Without credentials, the WeatherPanel displays the ERA5-Land product with the `credentials_required` status chip and the caveat about missing setup.
+
+**ECMWF Open Data IFS forecast verification**
+
+- The ECMWF adapter exists and makes unauthenticated requests to the public endpoint, but actual forecast values and parser correctness were not independently verified. Its run-selection, GRIB2 offsets, byte-range handling, scan order, and units remain acceptance work.
+- Individual fetch/decode failures can be converted to nulls. Because status is currently `ok` when any one value is present, partial/missing steps can be hidden; fix this before treating the product as usable.
+- The app page returned HTTP 200, but the weather server functions and WeatherPanel interaction flow were not exercised end to end in this session.
+
+**Remaining work**
+
+- Implement and test the ERA5-Land request/parser before considering credentials; credentials are currently absent and must not be added as a substitute for implementation.
+- Fix AOI/date validation, forecast error/partial status semantics, and complete independent ECMWF decoder verification as specified in the current handoff. No database, PostGIS, queue, worker, or paid imagery was added or is required by the present acceptance plan.
+- The two fixed public sample AOIs (Khanewal and Okara) remain as development fixtures, not surveyed farms. Imported/private boundaries are never sent to public providers.
+
+**Source decision preserved**
+
+- ERA5-Land for historical gridded weather (CDS credentials required, setup state until configured)
+- ECMWF Open Data IFS for a commercially reusable forecast
+- PMD as a local reference pending a documented data interface
+- Punjab PDMA/FFD dated reports for reviewed flood-event context
+- Punjab Crop Reporting Service annual district estimates for regional crop context
+- CHIRPS v3 as a credible optional rainfall cross-check (deferred from smallest first slice)
+- Open-Meteo excluded from product use because its free service is noncommercial

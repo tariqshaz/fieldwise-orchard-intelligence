@@ -73,6 +73,15 @@ describe("GeoJSON boundary acceptance", () => {
     );
   });
 
+  it("accepts an estate-only boundary and warns for every unmapped sector", () => {
+    const result = validate([estate(estateSquare)], ["s1", "s2"]);
+    assert.equal(result.ok, true, result.ok ? "" : result.errors.join("\n"));
+    if (result.ok) {
+      assert.deepEqual(result.boundary.sectors, []);
+      assert.match(result.warnings.join(" "), /No polygon supplied for 2 of 2 sectors/);
+    }
+  });
+
   it("accepts valid holes and two sectors sharing an edge", () => {
     const withHole = polygon(square(0, 0, 10, 10), square(4, 4, 6, 6));
     assert.equal(

@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { BoundaryImportDialog } from "@/components/dashboard/BoundaryImportDialog";
 import { GeoMap } from "@/components/dashboard/GeoMap";
 import { SentinelObservationPanel } from "@/components/dashboard/SentinelObservationPanel";
+import { WeatherPanel } from "@/components/dashboard/WeatherPanel";
 import type { ActionStatus, Drone, Recommendation, SensorNode } from "@/types/fieldwise";
 import type { ImportedBoundary } from "@/lib/geospatial";
 import { getBoundarySummary, loadImportedBoundary } from "@/lib/geospatial";
@@ -25,6 +26,17 @@ import {
 } from "lucide-react";
 
 type LayerKey = "ndvi" | "moisture" | "flight";
+
+/** Format an instant as Pakistan wall-clock time (UTC+05), the zone the header labels. */
+function formatPakistanTime(date: Date): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    hour12: false,
+    timeZone: "Asia/Karachi",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(date);
+}
 
 function Metric({
   label,
@@ -468,8 +480,14 @@ function Dashboard() {
     setActionLog(getActionLog());
   };
 
-  const [time, setTime] = useState(new Date());
+  // The header clock is rendered only after mount, and always in Pakistan
+  // time (UTC+05, the timezone the label states). Rendering it during the
+  // server pass would give the server's clock and timezone, and the browser
+  // would then hydrate a different text than the server sent — which aborts
+  // hydration for the whole dashboard and leaves the panels unresponsive.
+  const [time, setTime] = useState<Date | null>(null);
   useEffect(() => {
+    setTime(new Date());
     const id = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
@@ -506,7 +524,7 @@ function Dashboard() {
           <div className="text-right">
             <div className="label-eyebrow">UTC+05</div>
             <div className="font-mono text-sm text-gold">
-              {time.toLocaleTimeString("en-GB", { hour12: false })}
+              {time ? formatPakistanTime(time) : "--:--:--"}
             </div>
           </div>
           <div className="flex items-center gap-2 rounded-sm border border-gold/30 px-3 py-1.5">
@@ -696,6 +714,13 @@ function Dashboard() {
           See SITREP Phase 2: search → select one scene → NDVI with provenance. */}
       <section className="mt-4">
         <SentinelObservationPanel boundary={boundary} />
+      </section>
+
+      {/* Phase 3 — Environmental history and live forecast.
+          Historical reanalysis (ERA5-Land), current forecast (ECMWF IFS),
+          and contextual references (PMD, flood, crop statistics). */}
+      <section className="mt-4">
+        <WeatherPanel />
       </section>
 
       {/* Footer strip */}

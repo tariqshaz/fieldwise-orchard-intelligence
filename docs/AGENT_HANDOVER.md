@@ -33,7 +33,8 @@ The present app is an early visual prototype with a working satellite-data slice
 
 ### Still illustrative or absent
 
-- No live weather or forecast feed, historical weather/flood layer, or local crop-risk database yet.
+- **Phase 3 is accepted within its recorded scope** (final audit in the top of `SITREP.md`). ECMWF IFS is live for both fixed AOIs and verified against ecCodes 2.42.0. Credentialed ERA5-Land live GRIB1 files for Khanewal and Okara were independently checked against ecCodes 2.50.0: all five requested fields, reference times, P1/P2/time-range metadata, selected cells, 48 hourly timestamps, and hourly precipitation assembly match. The actual CDS messages encode one-hour P1/P2 precipitation intervals; the app uses those amounts directly. The result for the 2026-11-03→2026-11-09 default period is `Partial`, 48/168 timestamps, with five unavailable days. The panel shows all returned hours, retains the old result during refresh and failure, replaces it on success, and clears the result on AOI change. District flood/crop context is regional; PMD remains link-only. The weather panel has no date selector by design for this release; date selection and multi-year rainfall analysis remain deferred.
+- Field-boundary GeoJSON imports require an estate Polygon/MultiPolygon with `properties.role: "estate"`; sector polygons are optional and unmapped sectors are warned about. The validator was corrected to match that documented behavior so an estate-only polygon can be imported. A user-supplied LineString is not itself a field boundary polygon; inspect it for closure/self-intersection before conversion and never invent missing sector geometry.
 - No real surveyed farm boundary, ground observations, scout image ingestion, insect/disease identification, or lab/agronomist-confirmed case workflow.
 - No durable observation/evidence ledger or authenticated farm-scoped operations database. Boundary imports remain local browser storage.
 - No real drone, irrigation sensor/controller, spray/fumigation dispatch, or pollination workflow. Displayed movement/telemetry/actions are demo UI only.
@@ -55,11 +56,19 @@ Khanewal and Okara are currently **development/demo regions only**. No pilot are
 
 The current roadmap is in the “Current handoff” and “Reconciled build roadmap” sections of `SITREP.md`. Some older roadmap and task-prompt sections later in that long file have different phase numbering and are historical; **do not follow the old prompt titled “Phase 3 — Persist observations and show history.”**
 
-### Next: Phase 3 — environmental history and current forecast
+### Completed: Phase 3 — environmental history and current forecast
 
-First compare free/open providers for Khanewal and Okara: coverage, spatial/temporal resolution, license/terms, update cadence, variables, API limits, and missing-data behavior. Candidates to evaluate include PMD, ERA5-Land, CHIRPS, and appropriate forecast sources; no current-weather provider is selected yet. Check authoritative/open flood-event or extent history and regional crop-area context where available.
+Phase 3 is accepted; the independent ERA5 payload comparison, all automated checks, and the live browser walkthrough are recorded at the top of `SITREP.md`. Coverage remains partial where CDS reports missing days, and the product labels this accurately. Cloudflare `workerd` is not a gate because no Worker deployment is planned. Regional flood/crop references and link-only PMD are accepted with the documented limits.
+
+There are no remaining Phase 3 acceptance tasks. The date selector and multi-year rainfall analytics below are explicitly deferred product enhancements; do not implement them without owner reprioritization.
 
 Keep distinct typed products and UI labels for observed weather, reanalysis estimates, forecasts (issue/valid times), flood records/extent, and regional crop statistics. Preserve source, retrieval time, valid time, units, resolution, uncertainty, freshness, and gaps. A historic flood layer is exposure context, not current inundation. Do not label gridded/regional data as an on-farm sensor reading. Keep provider secrets server-side. Phase 3 is a data-source and product slice; do not pull in a database, PostGIS, queue, or worker unless measured limits make it necessary.
+
+#### Deferred Phase 3 product enhancements — planned, not current acceptance work
+
+- Add start/end date selection to the ERA5-Land panel, capped at 31 days, with provider-availability-aware bounds and explicit missing-hour/day coverage. Keep retrieval manual. The current 31-day limit is an app safeguard; the panel currently exposes only the default seven completed UTC days.
+- Add a separate long-range rainfall-history analysis for multi-year periods (candidate scope: 5–10 years). Retrieve precipitation in bounded chunks, validate the ERA5-Land accumulation handling, aggregate to daily/monthly/annual results server-side, and return compact charts/tables rather than tens of thousands of hourly rows. Evaluate the CDS hourly time-series/ARCO option against the main hourly dataset before choosing it for operational use; its product guide notes it is an alternative service with format/support caveats.
+- These enhancements are recorded in the Phase 3 plan for later detailed implementation. Do not start them during the remaining Phase 3 acceptance/QA task unless the project owner explicitly reprioritizes them.
 
 ### Following phases
 
@@ -90,6 +99,7 @@ No autonomous spraying, fumigation, closed-loop irrigation, commercial pollinati
 - `src/lib/geospatial.ts` — GeoJSON checks.
 - `src/lib/sentinel/` — data types, NDVI/masking, AOI validation, server-only providers, and Sentinel acceptance tests.
 - `src/lib/api/sentinel.functions.ts` — server functions exposed to the client.
+- `src/lib/weather/` — ERA5-Land and ECMWF IFS server adapters, GRIB readers, weather context products, and tests. `src/lib/weather/fixtures/` includes small synthetic timing cases plus licensed live CDS GRIB1 samples and ecCodes 2.50.0 oracle JSON for both sample AOIs. Keep the adjacent fixture README attribution with those data files.
 - `src/lib/fieldwise-seed.ts`, `fieldwise-service.ts`, `fieldwise-recommendations.ts`, `src/types/fieldwise.ts` — synthetic dashboard model and interactions.
 - `docs/research/fieldwise-orchard-intelligence-research-report.md` — agronomy/operations feasibility and evidence review.
 - `docs/fieldwise-schema.sql`, `drizzle/schema.ts`, `supabase/` — draft backend/data artifacts, not evidence that persistence/RLS is operational.
@@ -101,7 +111,7 @@ No autonomous spraying, fumigation, closed-loop irrigation, commercial pollinati
 - Bun lockfile is `bun.lock`; the VPS host has no project Node/Bun runtime installed. Do not install global packages or change host Node versions for this project.
 - Isolated app container: `fieldwise-dev`, image `oven/bun:1.3.9` pinned by digest in its run configuration. It bind-mounts the VPS repo and listens inside the container on 8081; host publishing is **only** `127.0.0.1:8081`.
 - No PostGIS, background queue, raster worker, or new cloud resource is present.
-- `.env` is ignored. On the VPS, runtime config is `/opt/fieldwise/.env` (mode 0600); it contains only publishable Supabase settings, no CDSE client credentials. Never copy values into source, docs, browser code, or logs. `.env.example` is the committed template. The old public history contains only publishable client values from when `.env` was tracked; do not add secrets going forward.
+- `.env` is ignored. On the VPS, runtime config is `/opt/fieldwise/.env` (mode 0600); it contains publishable Supabase settings and server-only CDS API credentials. CDSE Sentinel OAuth credentials remain unconfigured. `fieldwise-dev` currently receives this file with Docker's `--env-file` option. Never copy values into source, docs, browser code, or logs. `.env.example` is the committed template. The old public history contains only publishable client values from when `.env` was tracked; do not add secrets going forward.
 
 ## 6. VS Code / VPS workflow
 

@@ -961,10 +961,6 @@ export function validateBoundaryGeoJSON(
       `Found ${estateFeatureCount} estate boundaries. Import exactly one estate per file.`,
     );
   }
-  if (sectorBoundaries.length === 0) {
-    errors.push("No sector polygons found: add features with properties.sectorId.");
-  }
-
   const missingSectorIds = options.knownSectorIds.filter((id) => !seenSectorIds.has(id));
   if (missingSectorIds.length > 0) {
     warnings.push(

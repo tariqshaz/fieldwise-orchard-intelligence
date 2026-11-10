@@ -508,6 +508,7 @@ export function SentinelObservationPanel({ boundary }: { boundary: ImportedBound
   const [searchResult, setSearchResult] = useState<SceneSearchResult | null>(null);
 
   const [selectedScene, setSelectedScene] = useState<SentinelScene | null>(null);
+  const [observationScene, setObservationScene] = useState<SentinelScene | null>(null);
   const [obsPhase, setObsPhase] = useState<"idle" | "loading" | "error" | "done">("idle");
   const [obsError, setObsError] = useState<string | null>(null);
   const [observation, setObservation] = useState<NdviObservationResult | null>(null);
@@ -556,6 +557,7 @@ export function SentinelObservationPanel({ boundary }: { boundary: ImportedBound
     setSearchError(null);
     setSearchResult(null);
     setSelectedScene(null);
+    setObservationScene(null);
     setObsPhase("idle");
     setObsError(null);
     setObservation(null);
@@ -591,11 +593,6 @@ export function SentinelObservationPanel({ boundary }: { boundary: ImportedBound
     setFormError(null);
     setSearchPhase("loading");
     setSearchError(null);
-    setSearchResult(null);
-    setSelectedScene(null);
-    setObsPhase("idle");
-    setObsError(null);
-    setObservation(null);
 
     try {
       const response = await searchSentinelScenes({
@@ -608,6 +605,11 @@ export function SentinelObservationPanel({ boundary }: { boundary: ImportedBound
         return;
       }
       setSearchResult(response);
+      setSelectedScene(null);
+      setObservationScene(null);
+      setObsPhase("idle");
+      setObsError(null);
+      setObservation(null);
       setSearchPhase("done");
     } catch {
       if (seq !== searchSeq.current) return;
@@ -623,7 +625,6 @@ export function SentinelObservationPanel({ boundary }: { boundary: ImportedBound
     setSelectedScene(scene);
     setObsPhase("loading");
     setObsError(null);
-    setObservation(null);
 
     try {
       const response = await retrieveNdviObservation({
@@ -646,6 +647,7 @@ export function SentinelObservationPanel({ boundary }: { boundary: ImportedBound
         return;
       }
       setObservation(response);
+      setObservationScene(scene);
       setObsPhase("done");
     } catch {
       if (seq !== obsSeq.current) return;
@@ -657,6 +659,7 @@ export function SentinelObservationPanel({ boundary }: { boundary: ImportedBound
   function clearSelection(): void {
     obsSeq.current += 1;
     setSelectedScene(null);
+    setObservationScene(null);
     setObsPhase("idle");
     setObsError(null);
     setObservation(null);
@@ -802,7 +805,7 @@ export function SentinelObservationPanel({ boundary }: { boundary: ImportedBound
       )}
 
       {/* Search states */}
-      {searchPhase === "idle" && !formError && (
+      {searchPhase === "idle" && !formError && !searchResult && (
         <div className="mt-4 rounded-sm border border-border/40 bg-black/10 px-3 py-3 text-[11px] text-muted-foreground">
           Choose an area and date range, then search the Sentinel-2 archive. With no CDSE
           credentials, the Khanewal and Okara sample areas use the public Microsoft Planetary
@@ -831,7 +834,7 @@ export function SentinelObservationPanel({ boundary }: { boundary: ImportedBound
         </div>
       )}
 
-      {searchPhase === "done" && sceneList && sceneList.length === 0 && (
+      {searchResult && sceneList && sceneList.length === 0 && (
         <div className="mt-4 rounded-sm border border-border/40 bg-black/10 px-3 py-3 text-[11px] text-muted-foreground">
           <span className="font-mono text-foreground/80">No scenes found.</span> There are no
           Sentinel-2 L2A acquisitions over this area between {searchResult?.dateRange.from} and{" "}
@@ -839,7 +842,7 @@ export function SentinelObservationPanel({ boundary }: { boundary: ImportedBound
         </div>
       )}
 
-      {searchPhase === "done" && sceneList && sceneList.length > 0 && searchResult && (
+      {sceneList && sceneList.length > 0 && searchResult && (
         <div className="mt-4 border-t border-border/40 pt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="label-eyebrow">
@@ -876,7 +879,7 @@ export function SentinelObservationPanel({ boundary }: { boundary: ImportedBound
                 key={scene.id}
                 scene={scene}
                 selected={selectedScene?.id === scene.id}
-                disabled={obsPhase === "loading"}
+                disabled={searchPhase === "loading" || obsPhase === "loading"}
                 onSelect={handleSelectScene}
               />
             ))}
@@ -914,7 +917,7 @@ export function SentinelObservationPanel({ boundary }: { boundary: ImportedBound
             </div>
           )}
 
-          {selectedScene && obsPhase === "done" && observation && (
+          {observationScene && observation && (
             <>
               {observation.summary.validPixelPct < UNUSABLE_PCT ? (
                 <div className="mt-3 rounded-sm border px-4 py-4" style={WARNING_STYLE}>
@@ -937,7 +940,7 @@ export function SentinelObservationPanel({ boundary }: { boundary: ImportedBound
                         </span>{" "}
                         of the AOI bounding box has usable pixels in{" "}
                         <span className="truncate font-mono text-foreground/80">
-                          {selectedScene.id}
+                          {observationScene.id}
                         </span>{" "}
                         — the rest is cloud, shadow, water, or no-data under the mask.
                       </p>
@@ -957,7 +960,7 @@ export function SentinelObservationPanel({ boundary }: { boundary: ImportedBound
                   </div>
                 </div>
               ) : (
-                <ObservationView observation={observation} scene={selectedScene} />
+                <ObservationView observation={observation} scene={observationScene} />
               )}
             </>
           )}

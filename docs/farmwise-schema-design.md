@@ -1,11 +1,12 @@
 # Farmwise evidence ledger — Phase 4 first-slice schema design
 
-**Status:** design and migration prepared locally. **NOT applied to the live backend.**
-The Lovable Cloud database is unchanged: no table, policy, bucket, user, role, or row was
-created, altered, or deleted. The migration in this repository is a reviewable draft.
+**Status:** schema design and SQL review are complete. The SQL is archived outside the
+active migration path because its manually authored Drizzle journal entry had no matching
+snapshot. **NOT applied to the live backend.** No database object or row was changed.
 
-**Migration file:** `drizzle/migrations/0000_farmwise_evidence_ledger.sql`
-**Journal entry:** `drizzle/migrations/meta/_journal.json` (`idx: 0`, tag `0000_farmwise_evidence_ledger`)
+**Reviewed SQL archive:** `docs/farmwise-evidence-ledger-reviewed.sql`
+**Active Drizzle journal:** `drizzle/migrations/meta/_journal.json` (empty until Lovable's
+native migration workflow creates a valid first migration and snapshot)
 
 ---
 
@@ -478,19 +479,24 @@ they are answered; the application cannot.
 
 Applying is a separate, explicitly authorised step. The owner should:
 
-1. **Review the SQL** in `drizzle/migrations/0000_farmwise_evidence_ledger.sql` as SQL.
-2. **Take a fresh database export** — **More → Database → Manage → Settings → Export data** —
-   and confirm it completed. The database is currently empty, so this export is the
-   pre-change baseline; it becomes the rollback point.
-3. **Authorise application separately.** The migration file is in the repository and the
-   journal entry is written, but nothing applies it by itself: Lovable Cloud applies
-   migrations when it is asked to change the database. **Confirm that this project applies
-   `drizzle/migrations/` entries** — that behaviour was never observed here, and a local
-   run through drizzle-orm's migrator is not proof of it — and confirm that the journal
-   entry's `when` timestamp is after the last applied migration.
-4. **Apply it**, then confirm through the Lovable Database view that five tables exist and
-   that every row count is zero.
-5. **Provision the first owner** (§8), and only then begin any application work.
+1. **Review the SQL archive** at `docs/farmwise-evidence-ledger-reviewed.sql`. This file is
+   outside the active migration directory and will not be discovered as a pending Drizzle
+   migration.
+2. The owner confirms the pre-migration export already exists at
+   `database_export_11_11_26/fieldwise-orchard-intelligence_261111.backup` (312 KB).
+3. Commit and sync the repository cleanup (empty Drizzle journal; reviewed SQL retained in
+   `docs/`). Then run Lovable's read-only migration-history inspection and confirm it shows
+   no broken/pending entry. Do not request another database structure change before that
+   check; Lovable may process all journaled pending migrations on a later schema change.
+4. **Only after the baseline is clean and the owner explicitly authorizes it**, ask Lovable
+   in Build Mode to apply this reviewed schema through its native migration workflow. The
+   reported workflow creates the valid migration file, snapshot, journal entry, applies
+   the DDL, records the run, and refreshes TypeScript types as one operation. There is no
+   separate preview, so the request may apply immediately. Do not use the shell migrator
+   or the general SQL Editor.
+5. Verify that the five tables exist and are empty, inspect migration history, and check
+   whether generated types were updated. Provision the first owner (§8) only as a separate
+   later decision.
 
 **Rollback:** the export from step 2 restores the prior state. There is no down-migration,
 deliberately: this schema creates only new objects and changes nothing existing, so removing
@@ -570,21 +576,22 @@ database was contacted, and no credential was used or added.**
   `drizzle/schema.ts` is Lovable-generated and was left untouched.
 - **PostgreSQL 17.11 (the live version) versus 16.15 (the local test).** No feature used
   here is version-specific, but the live apply is the first run on 17.
-- **Whether Lovable Cloud's migration runner applies `drizzle/migrations/` entries from this
-  repository.** The journal entry is written in the exact shape `drizzle-kit` 0.31.11
-  produces, and the file applies successfully through drizzle-orm's own migrator. That
-  proves the SQL is sound **and that it applies through that migrator**; it is **not**
-  evidence that Lovable Cloud reads this directory, invokes this migrator, or applies
-  this journal entry at all. The runner's behaviour on this project was never observed,
-  because the live backend was not contacted. **This remains unverified** and must be
-  confirmed by the owner from this project's own settings before applying (§11, step 3).
+- **Live application is still unverified.** Owner-provided Lovable workflow guidance says
+  the native migration operation creates the SQL migration, snapshot, journal entry,
+  applies DDL, records the run, and regenerates types together; pending journal entries
+  may run on a later structure change. No such operation has succeeded in this project.
+  The manually authored entry lacked a snapshot and was removed from the active journal;
+  the reviewed SQL is now archived at `docs/farmwise-evidence-ledger-reviewed.sql`.
+  After repository sync and a clean read-only history inspection, the owner must authorize
+  the native workflow to create and apply the valid first migration (§11). Local tests do
+  not establish live RLS behavior or a successful Lovable migration.
 
 ## 13. Files
 
 | File | Status |
 | --- | --- |
-| `drizzle/migrations/0000_farmwise_evidence_ledger.sql` | **Added** — the migration, not applied. |
-| `drizzle/migrations/meta/_journal.json` | **Changed** — one entry, `idx: 0`, matching the shape `drizzle-kit` writes. |
+| `docs/farmwise-evidence-ledger-reviewed.sql` | Reviewed SQL archive; **not an active migration and not applied**. |
+| `drizzle/migrations/meta/_journal.json` | Empty; the manually authored entry was removed because its required snapshot was missing. |
 | `docs/farmwise-schema-design.md` | **Added** — this document. |
 | `SITREP.md`, `docs/AGENT_HANDOVER.md` | **Changed** — findings and next steps only. |
 

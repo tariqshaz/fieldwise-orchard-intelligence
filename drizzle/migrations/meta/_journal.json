@@ -1,13 +1,5 @@
 {
   "version": "7",
   "dialect": "postgresql",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1794387806824,
-      "tag": "0000_farmwise_evidence_ledger",
-      "breakpoints": true
-    }
-  ]
+  "entries": []
 }

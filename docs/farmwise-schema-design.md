@@ -493,7 +493,9 @@ Applying is a separate, explicitly authorised step. The owner should:
    reported workflow creates the valid migration file, snapshot, journal entry, applies
    the DDL, records the run, and refreshes TypeScript types as one operation. There is no
    separate preview, so the request may apply immediately. Do not use the shell migrator
-   or the general SQL Editor.
+   or the general SQL Editor. The reviewed SQL orders table/function grants before enabling
+   RLS and creating policies to satisfy the ordering requirement reported by Lovable; the
+   final privilege and policy state was rechecked on disposable local PostgreSQL.
 5. Verify that the five tables exist and are empty, inspect migration history, and check
    whether generated types were updated. Provision the first owner (§8) only as a separate
    later decision.

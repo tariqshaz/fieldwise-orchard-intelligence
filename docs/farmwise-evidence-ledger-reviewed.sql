@@ -56,7 +56,7 @@ $$;
 --    These are IMMUTABLE, SECURITY INVOKER functions with a pinned
 --    `search_path`, so a caller cannot change what they mean by changing the
 --    session's search path. They are executable only by the roles that
---    actually write the tables (see section 6).
+--    actually write the tables (see the explicit grants below).
 --
 --    The checks are deliberately written with jsonb operators and regular
 --    expressions rather than with casts of extracted text to numeric. A cast
@@ -745,7 +745,58 @@ create trigger evidence_observations_audit
   for each row execute function public.write_audit_event();
 
 -- ---------------------------------------------------------------------------
--- 5. Row Level Security
+-- 5. Grants: establish least-privilege table/function privileges before enabling RLS.
+-- ---------------------------------------------------------------------------
+
+-- The roles need to be able to reach the schema at all before any table
+-- privilege can apply. USAGE on a schema grants no access to the objects in
+-- it; the table privileges below are what actually decide what each role
+-- may do. This is stated explicitly rather than left to the platform's
+-- default, so the migration behaves the same wherever it is applied.
+grant usage on schema public to anon, authenticated, service_role;
+
+revoke all on table public.farms,
+                public.farm_members,
+                public.areas,
+                public.evidence_observations,
+                public.audit_events
+  from anon, authenticated;
+
+grant select, insert, update         on table public.farms to authenticated;
+
+grant select, insert, update, delete on table public.farm_members to authenticated;
+
+grant select, insert, update, delete on table public.areas to authenticated;
+
+grant select, insert                 on table public.evidence_observations to authenticated;
+
+grant select                         on table public.audit_events to authenticated;
+
+-- The shape-checking functions are called from CHECK constraints, so the
+-- roles that write the tables need to execute them. They are not granted to
+-- PUBLIC: nothing outside the writing roles can use them.
+revoke all on function public.is_ndvi_histogram(jsonb) from public;
+revoke all on function public.is_masking_disclosure(jsonb) from public;
+revoke all on function public.is_bounded_caveats(text[]) from public;
+revoke all on function public.is_audit_detail(jsonb) from public;
+grant execute on function public.is_ndvi_histogram(jsonb) to authenticated, service_role;
+grant execute on function public.is_masking_disclosure(jsonb) to authenticated, service_role;
+grant execute on function public.is_bounded_caveats(text[]) to authenticated, service_role;
+grant execute on function public.is_audit_detail(jsonb) to authenticated, service_role;
+
+-- The trigger functions are invoked by the database, not by a caller, so no
+-- application role needs to execute them.
+revoke all on function public.grant_farm_owner_to_creator() from public;
+revoke all on function public.guard_last_farm_owner() from public;
+revoke all on function public.write_audit_event() from public;
+
+-- The authorisation helper is used by the policies, so the roles that the
+-- policies apply to need to execute it.
+revoke all on function public.farm_role(uuid) from public;
+grant execute on function public.farm_role(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 6. Row Level Security
 -- ---------------------------------------------------------------------------
 
 alter table public.farms enable row level security;
@@ -840,57 +891,6 @@ create policy audit_events_select_member on public.audit_events
 
 -- No insert, update or delete policy. The audit trail is written by the
 -- database triggers only, so an application cannot forge or rewrite history.
-
--- ---------------------------------------------------------------------------
--- 6. Grants: least privilege at the table level as well as the row level.
--- ---------------------------------------------------------------------------
-
--- The roles need to be able to reach the schema at all before any table
--- privilege can apply. USAGE on a schema grants no access to the objects in
--- it; the table privileges below are what actually decide what each role
--- may do. This is stated explicitly rather than left to the platform's
--- default, so the migration behaves the same wherever it is applied.
-grant usage on schema public to anon, authenticated, service_role;
-
-revoke all on table public.farms,
-                public.farm_members,
-                public.areas,
-                public.evidence_observations,
-                public.audit_events
-  from anon, authenticated;
-
-grant select, insert, update         on table public.farms to authenticated;
-
-grant select, insert, update, delete on table public.farm_members to authenticated;
-
-grant select, insert, update, delete on table public.areas to authenticated;
-
-grant select, insert                 on table public.evidence_observations to authenticated;
-
-grant select                         on table public.audit_events to authenticated;
-
--- The shape-checking functions are called from CHECK constraints, so the
--- roles that write the tables need to execute them. They are not granted to
--- PUBLIC: nothing outside the writing roles can use them.
-revoke all on function public.is_ndvi_histogram(jsonb) from public;
-revoke all on function public.is_masking_disclosure(jsonb) from public;
-revoke all on function public.is_bounded_caveats(text[]) from public;
-revoke all on function public.is_audit_detail(jsonb) from public;
-grant execute on function public.is_ndvi_histogram(jsonb) to authenticated, service_role;
-grant execute on function public.is_masking_disclosure(jsonb) to authenticated, service_role;
-grant execute on function public.is_bounded_caveats(text[]) to authenticated, service_role;
-grant execute on function public.is_audit_detail(jsonb) to authenticated, service_role;
-
--- The trigger functions are invoked by the database, not by a caller, so no
--- application role needs to execute them.
-revoke all on function public.grant_farm_owner_to_creator() from public;
-revoke all on function public.guard_last_farm_owner() from public;
-revoke all on function public.write_audit_event() from public;
-
--- The authorisation helper is used by the policies, so the roles that the
--- policies apply to need to execute it.
-revoke all on function public.farm_role(uuid) from public;
-grant execute on function public.farm_role(uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 7. Indexes
